@@ -1,0 +1,12 @@
+# Local config for the Hermes subagent. Hermes is invoked in-process and is
+# not published — installing trustlayer-sdk is enough to use it
+# (`pip install -e sdks/python`). This file only configures pytest so the
+# package and the SDK resolve from a clean checkout.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["..", "../../sdks/python/src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

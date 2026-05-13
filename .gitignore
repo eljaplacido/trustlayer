@@ -1,0 +1,39 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / TypeScript ---
+node_modules/
+sdks/typescript/dist/
+*.tsbuildinfo
+.npm/
+.eslintcache
+
+# --- Rust ---
+target/
+# Cargo.lock is committed because core-rs ships a binary (trustlayer-guardian);
+# pin transitive deps for reproducible builds.
+
+# --- Editors / OS / AI tooling ---
+.idea/
+.vscode/
+.claude/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- TrustLayer scratch & runtime state ---
+.temp_research/
+obsidian_vault/.hermes_state/
+.gitnexus/

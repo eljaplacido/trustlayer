@@ -1,0 +1,32 @@
+{
+  "name": "default",
+  "rules": [
+    {
+      "name": "block_external_llm_for_pii_tools",
+      "match": {
+        "event_type": "TOOL_CALL",
+        "tool_name": "external_llm"
+      },
+      "decision": "FAIL",
+      "reason": "External LLM is disabled in this policy. Use the in-house model."
+    },
+    {
+      "name": "escalate_complex_human_calls",
+      "match": {
+        "event_type": "TOOL_CALL",
+        "cynefin_domain": "COMPLEX",
+        "tool_name": "human_callout"
+      },
+      "decision": "ESCALATE",
+      "reason": "Complex-domain human callouts require an oncall review."
+    },
+    {
+      "name": "allow_calculator",
+      "match": {
+        "event_type": "TOOL_CALL",
+        "tool_name": "calculator"
+      },
+      "decision": "PASS"
+    }
+  ]
+}
