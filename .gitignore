@@ -37,3 +37,4 @@ Thumbs.db
 .temp_research/
 obsidian_vault/.hermes_state/
 .gitnexus/
+examples/.demo_traces.jsonl
