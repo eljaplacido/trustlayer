@@ -44,7 +44,7 @@
 - [x] Tests — **19/19 Rust** (15 unit + 4 cross-language), **8 new Python guardian tests** (23 total in Python SDK).
 - [x] End-to-end smoke: Python SDK → live Rust server returning correct FAIL/ESCALATE/PASS across four scenarios.
 - [x] ADR-004 recorded at `obsidian_vault/01_Architecture/ADR-004-Cynepic-Guardian-Policy-Engine.md`.
-- [ ] (Follow-up 4.5) TypeScript SDK guardian client.
+- [x] (Follow-up 4.5) TypeScript SDK guardian client + `Tracer.check()` parity (11 new vitest cases, 27/27 total).
 - [x] (Follow-up 4.5) `Tracer.check()` helper combining guardian call + `POLICY_CHECK` event.
 - [ ] (Follow-up) `MatchSpec` predicates on arbitrary payload fields.
 - [ ] (Follow-up) `cargo clippy` + `cargo fmt` enforcement in CI (`rustup component add clippy rustfmt`).
@@ -63,6 +63,7 @@
 - [ ] Build TrustLayer MCP Server for standard tool bridging.
 
 ## 📝 Recent Updates
+- **2026-05-16** (latest): Phase 4.5 closed. Python `Tracer.check()` shipped (commit 3cccc6e, 4 new pytest cases) and TypeScript SDK gained `GuardianClient` + `Tracer.check()` parity (11 new vitest cases). All four layers green: Python 27/27, Hermes 44/44, Rust 19/19, TypeScript 27/27 — 117 tests total.
 - **2026-05-13** (latest): Phase 4.6 — code-graph sense-making landed. New `skills/hermes/code_graph.py` with `CodeGraphImporter` (Pydantic v2 `CodeNode`/`CodeEdge`, generic JSON input), new `import-code-graph` CLI subcommand, output in a new `obsidian_vault/06_Code_Graph/` surface so the static code graph and runtime memory traces share one navigable vault. 11 new pytest cases, 44/44 total green. ADR-005 captures the design and the PolyForm Noncommercial licensing caveat on GitNexus. Two follow-up actions are user-gated (auto-classifier blocked agent-config self-modification and the global npm install).
 - **2026-05-13** (later): Phase 4 — cynepic-guardian shipped. Rust core lib (schema mirror, CSL policy parser, ordered evaluator with Cynefin-aware default), Axum HTTP sidecar binary, Python `GuardianClient` (fail-open by default), 19/19 Rust tests + 8 new Python tests, live end-to-end smoke across FAIL/ESCALATE/PASS scenarios. ADR-004 captures the design.
 - **2026-05-13**: Phase 3.5 — Hermes token/memory optimisation. Four bounded, opt-out-able knobs on `HermesAgent` (`max_payload_chars`, `max_cached_sessions`, `persist_events`, `state_path`); crash-resumable `reflect()`; LLM-friendly `SessionSummary.compact_text()`. 33/33 Hermes pytest cases passing. ADR-003 records the model. Also: `docs/ARCHITECTURE.md` rewritten with the actual three-layer data flow, `docs/SCHEMA.md` expanded to document every payload type, root `README.md` rewritten with concrete per-layer quickstarts, `CLAUDE.md` aligned with shipped phase status.

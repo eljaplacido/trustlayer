@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { TrustLayerClient } from "./client.js";
+import type { GuardianClient, Verdict } from "./guardian.js";
 import type {
   AgentTraceEvent,
   CynefinDomain,
@@ -105,5 +106,34 @@ export class Tracer {
       reason,
     };
     return this.emit("POLICY_CHECK", payload);
+  }
+
+  async check(
+    toolName: string,
+    toolArgs: Record<string, unknown>,
+    opts: {
+      guardian: GuardianClient;
+      policyName?: string;
+      cynefinDomain?: CynefinDomain;
+    },
+  ): Promise<Verdict> {
+    const callPayload: ToolCallPayload = {
+      tool_name: toolName,
+      tool_args: toolArgs,
+    };
+    const candidate = await this.emit(
+      "TOOL_CALL",
+      callPayload,
+      {},
+      opts.cynefinDomain,
+    );
+    const verdict = await opts.guardian.check(candidate, opts.policyName);
+    await this.policyCheck(
+      verdict.policy,
+      `invoke ${toolName}`,
+      verdict.decision,
+      verdict.reason ?? undefined,
+    );
+    return verdict;
   }
 }
