@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from .client import TrustLayerClient
+from .guardian import GuardianClient, Verdict
 from .schema import (
     AgentTraceEvent,
     CynefinDomain,
@@ -115,3 +116,38 @@ class Tracer:
                 reason=reason,
             ).model_dump(),
         )
+
+    def check(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any] | None = None,
+        *,
+        guardian: GuardianClient,
+        policy_name: str | None = None,
+        cynefin_domain: CynefinDomain | None = None,
+    ) -> Verdict:
+        """Ask the guardian to adjudicate a candidate ``TOOL_CALL`` and record the verdict.
+
+        Emits a ``TOOL_CALL`` event, forwards it to the guardian, and emits a
+        follow-up ``POLICY_CHECK`` carrying the verdict. The caller inspects
+        the returned :class:`Verdict` and decides whether to actually invoke
+        the tool (typically: only on ``PASS``).
+
+        The event sent to the guardian is the same one that was emitted,
+        so the trace and the policy decision are correlated by ``trace_id``.
+        """
+        candidate = self.emit(
+            EventType.TOOL_CALL,
+            payload=ToolCallPayload(
+                tool_name=tool_name, tool_args=tool_args or {}
+            ).model_dump(),
+            cynefin_domain=cynefin_domain,
+        )
+        verdict = guardian.check(candidate, policy_name=policy_name)
+        self.policy_check(
+            policy_name=verdict["policy"],
+            action=f"invoke {tool_name}",
+            result=PolicyCheckResult(verdict["decision"]),
+            reason=verdict["reason"],
+        )
+        return verdict

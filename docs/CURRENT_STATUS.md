@@ -45,7 +45,7 @@
 - [x] End-to-end smoke: Python SDK → live Rust server returning correct FAIL/ESCALATE/PASS across four scenarios.
 - [x] ADR-004 recorded at `obsidian_vault/01_Architecture/ADR-004-Cynepic-Guardian-Policy-Engine.md`.
 - [ ] (Follow-up 4.5) TypeScript SDK guardian client.
-- [ ] (Follow-up 4.5) `Tracer.check()` helper combining guardian call + `POLICY_CHECK` event.
+- [x] (Follow-up 4.5) `Tracer.check()` helper combining guardian call + `POLICY_CHECK` event.
 - [ ] (Follow-up) `MatchSpec` predicates on arbitrary payload fields.
 - [ ] (Follow-up) `cargo clippy` + `cargo fmt` enforcement in CI (`rustup component add clippy rustfmt`).
 
