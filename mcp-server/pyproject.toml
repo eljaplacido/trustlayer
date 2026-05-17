@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trustlayer-mcp"
+version = "0.1.0"
+description = "MCP server bridging TrustLayer (SDK + Guardian + Hermes) to MCP-aware clients."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "TrustLayer Contributors" },
+]
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mcp>=1.10,<2.0",
+    "pydantic>=2.0.0",
+    "trustlayer-sdk",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+trustlayer-mcp = "trustlayer_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trustlayer_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../sdks/python/src", "../skills"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/trustlayer_mcp"]

@@ -18,6 +18,10 @@ systems. It intercepts tool calls, evaluates policies (Rust core, Phase
 - `sdks/typescript/` — TypeScript SDK for instrumenting JS agents.
   **Phase 2, shipped.**
 - `skills/hermes/` — recursive memory subagent. **Phase 3, shipped.**
+- `mcp-server/` — Python MCP server (FastMCP stdio) bridging SDK +
+  Guardian + Hermes to MCP-aware clients. **Phase 5, shipped.**
+- `dashboard/` — React + Vite + TypeScript shell for the observability
+  UI. **Phase 5, scaffolded** (data source TBD — see ADR-006).
 - `obsidian_vault/` — human-readable knowledge graph (architecture,
   agent skills, memory traces, reflections).
 - `docs/` — architecture blueprints, schemas, and status tracking.
@@ -57,6 +61,15 @@ cd sdks/typescript && npm install && npm run typecheck && npm test
 cd core-rs && cargo test --features server
 # Run the guardian HTTP sidecar:
 cd core-rs && cargo run --release --features server --bin trustlayer-guardian
+
+# MCP server (Python, FastMCP stdio)
+cd mcp-server && python3 -m venv .venv && .venv/bin/pip install -e ../sdks/python -e .[dev]
+PYTHONPATH=src:../sdks/python/src:../skills .venv/bin/python -m pytest
+.venv/bin/trustlayer-mcp        # serve over stdio
+
+# Dashboard (React + Vite)
+cd dashboard && npm install && npm run typecheck && npm run build
+npm run dev   # http://localhost:5173
 ```
 
 ## Hermes invocation

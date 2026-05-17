@@ -1,6 +1,6 @@
 # Current Status
 
-**Phase:** Phase 4.6 — code-graph sense-making (Hermes importer) shipped; Phase 5 (Dashboard + MCP) next
+**Phase:** Phase 5 — MCP server shipped; dashboard scaffolded (data source TBD)
 **Overall Status:** GREEN
 
 ## 📋 Roadmap & Task List
@@ -59,11 +59,15 @@
 - [ ] (User action) `npm install -g gitnexus@latest` with `GITNEXUS_SKIP_OPTIONAL_GRAMMARS=1` — blocked by auto-classifier as third-party global install.
 
 ### Phase 5: Dashboard & MCP Server
-- [ ] Build TrustLayer Dashboard (React/Vite).
-- [ ] Build TrustLayer MCP Server for standard tool bridging.
+- [~] TrustLayer Dashboard — `dashboard/` Vite + React + TS strict shell scaffolded. Four placeholder panes (Traces, Sessions, Reflections, Policy). `npm run typecheck` + `npm run build` green. Data source deferred (see ADR-006).
+- [x] TrustLayer MCP Server — `mcp-server/` Python package using FastMCP over stdio. Five tools wrap the Python SDK + Guardian + Hermes: `trustlayer_emit_event`, `trustlayer_guardian_check`, `trustlayer_hermes_ingest`, `trustlayer_hermes_get_session`, `trustlayer_hermes_reflect`. Pure handlers in `tools.py`, transport-free; `server.py` is the FastMCP wrapper. 12/12 pytest cases land with the scaffold. ADR-006 records the design.
+- [ ] (Follow-up) Pick dashboard data source (JSONL / vault / ingest service) and wire the Traces pane.
+- [ ] (Follow-up) Decide whether dashboard reads vault state via the MCP server or directly from disk.
+- [ ] (User action) Register `trustlayer-mcp` in `.claude/settings.json` — blocked by auto-classifier on agent-config self-modification.
 
 ## 📝 Recent Updates
-- **2026-05-16** (latest): Phase 4.5 closed. Python `Tracer.check()` shipped (commit 3cccc6e, 4 new pytest cases) and TypeScript SDK gained `GuardianClient` + `Tracer.check()` parity (11 new vitest cases). All four layers green: Python 27/27, Hermes 44/44, Rust 19/19, TypeScript 27/27 — 117 tests total.
+- **2026-05-17** (latest): Phase 5 — MCP server shipped, dashboard scaffolded. New top-level `mcp-server/` (Python, FastMCP stdio, 5 tools wrapping SDK + Guardian + Hermes, 12/12 pytest green) and `dashboard/` (Vite + React + TS strict, four placeholder panes, typecheck + build green). Handlers are transport-free in `tools.py` so they unit-test directly. ADR-006 captures the layout decision, the Python-for-MCP rationale, the stdio-for-v1 choice, and the explicitly deferred trace-store decision for the dashboard.
+- **2026-05-16**: Phase 4.5 closed. Python `Tracer.check()` shipped (commit 3cccc6e, 4 new pytest cases) and TypeScript SDK gained `GuardianClient` + `Tracer.check()` parity (11 new vitest cases). All four layers green: Python 27/27, Hermes 44/44, Rust 19/19, TypeScript 27/27 — 117 tests total.
 - **2026-05-13** (latest): Phase 4.6 — code-graph sense-making landed. New `skills/hermes/code_graph.py` with `CodeGraphImporter` (Pydantic v2 `CodeNode`/`CodeEdge`, generic JSON input), new `import-code-graph` CLI subcommand, output in a new `obsidian_vault/06_Code_Graph/` surface so the static code graph and runtime memory traces share one navigable vault. 11 new pytest cases, 44/44 total green. ADR-005 captures the design and the PolyForm Noncommercial licensing caveat on GitNexus. Two follow-up actions are user-gated (auto-classifier blocked agent-config self-modification and the global npm install).
 - **2026-05-13** (later): Phase 4 — cynepic-guardian shipped. Rust core lib (schema mirror, CSL policy parser, ordered evaluator with Cynefin-aware default), Axum HTTP sidecar binary, Python `GuardianClient` (fail-open by default), 19/19 Rust tests + 8 new Python tests, live end-to-end smoke across FAIL/ESCALATE/PASS scenarios. ADR-004 captures the design.
 - **2026-05-13**: Phase 3.5 — Hermes token/memory optimisation. Four bounded, opt-out-able knobs on `HermesAgent` (`max_payload_chars`, `max_cached_sessions`, `persist_events`, `state_path`); crash-resumable `reflect()`; LLM-friendly `SessionSummary.compact_text()`. 33/33 Hermes pytest cases passing. ADR-003 records the model. Also: `docs/ARCHITECTURE.md` rewritten with the actual three-layer data flow, `docs/SCHEMA.md` expanded to document every payload type, root `README.md` rewritten with concrete per-layer quickstarts, `CLAUDE.md` aligned with shipped phase status.
