@@ -2,6 +2,7 @@
 adr: 006
 status: accepted
 date: 2026-05-17
+updated: 2026-05-18
 tags: [architecture, phase-5, dashboard, mcp, observability]
 supersedes: []
 extends: ["[[ADR-001-SDK-Wedge]]", "[[ADR-002-Hermes-Memory-Agent]]", "[[ADR-004-Cynepic-Guardian-Policy-Engine]]"]
@@ -51,18 +52,25 @@ docs, obsidian_vault) sit at the same level as the user reading them.
   `sdks/typescript/` discipline).
 - **Status in this ADR:** scaffold only. Four placeholder panes
   (Traces, Sessions, Reflections, Policy) hint at the intended surface.
-- **Deferred decision — trace store:** the dashboard needs *some* way
-  to read the live event stream. Three candidates:
-    1. Read JSONL files (simplest, matches the current
-       `examples/end_to_end_demo.py` output but doesn't scale).
-    2. Read directly from Hermes vault notes (free for free — Hermes
-       already writes structured markdown — but human-friendly
-       formatting is the wrong contract for a UI).
-    3. Add a small ingest service backed by the Rust sidecar (cleanest
-       long-term; biggest scope).
-  This ADR explicitly punts the choice — the scaffold compiles and
-  builds, but no pane fetches data yet. Whichever data path we pick,
-  the four-pane shape stays.
+- **Trace store (resolved 2026-05-18): option 3 — extend the Rust
+  sidecar.** The existing `trustlayer-guardian` binary now also serves
+  the trace-store read API:
+
+    - `POST /v1/events`                                  — single event or batch
+    - `GET /v1/events?agent_id=&session_id=&limit=N`     — filtered list
+    - `GET /v1/sessions`                                 — per-pair summaries
+    - `GET /v1/sessions/:agent/:session`                 — one session
+
+  Persistence is append-only JSONL at `TRUSTLAYER_EVENTS_PATH`
+  (default `./events.jsonl`; set to `""` for in-memory). The
+  `EventStore` mirrors the Hermes JSONL pattern from [[ADR-003-Hermes-Token-Memory-Model]]
+  — idempotent on `trace_id`, replay-on-open. Router lives in
+  `core-rs/src/server.rs` so the binary and integration tests share
+  one source of truth. CORS is permissive (`Any`) so the dashboard
+  can fetch directly from a different port.
+
+  The Traces pane is wired (`GET /v1/events?limit=50`, polled every 5s);
+  Sessions / Reflections / Policy panes are still placeholders.
 
 ### MCP server
 
@@ -110,13 +118,17 @@ docs, obsidian_vault) sit at the same level as the user reading them.
   cannot show live data until that lands; we should not let that drag.
 
 ## Follow-ups
-- Pick the dashboard's data source (the three candidates above) and
-  wire the Traces pane first.
-- Sessions/Reflections panes can read directly from
-  `obsidian_vault/03_Memory_Traces/` and `obsidian_vault/05_Reflections/`
-  via the MCP server's `hermes_get_session` + `hermes_reflect` tools
-  — i.e. dashboard ↔ MCP server, not dashboard ↔ filesystem. Decide
-  before implementing.
+- Wire the Sessions pane to `GET /v1/sessions` (cheap — same fetch
+  shape as the Traces pane) and the per-session drill-down to
+  `GET /v1/sessions/:agent/:session`.
+- Decide whether the Reflections pane reads vault markdown directly
+  or goes through the MCP server's `trustlayer_hermes_reflect` tool.
+  The latter keeps the contract uniform; the former skips a hop.
+- Auth/token gating on the ingest routes (currently open). Acceptable
+  for v0 because we listen on loopback only.
+- Switch the sync `Mutex` in `EventStore` to a `tokio::sync::Mutex`
+  if the JSONL write ever becomes a measured tail-latency problem;
+  current writes are <100µs on local disk.
 - Register the MCP server in `.claude/settings.json` once the auto-
   classifier permits agent-config edits (same blocker as the GitNexus
   follow-up from [[ADR-005-Code-Graph-Integration]]).

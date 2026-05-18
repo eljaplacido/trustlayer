@@ -1,44 +1,34 @@
-//! `trustlayer-guardian` — tiny HTTP sidecar exposing `cynepic-guardian`.
+//! `trustlayer-guardian` — HTTP sidecar exposing `cynepic-guardian` and a
+//! Phase 5 trace-store read API.
 //!
 //! Listens on `TRUSTLAYER_BIND` (default `127.0.0.1:8089`). Loads its policy
-//! from `TRUSTLAYER_POLICY` (default `./policies/default.json`).
+//! from `TRUSTLAYER_POLICY` (default `./policies/default.json`). Persists
+//! ingested events to JSONL at `TRUSTLAYER_EVENTS_PATH` (default
+//! `./events.jsonl`; set to `""` to run in-memory only).
 //!
 //! ```text
 //! POST /v1/check
 //!   { "event": <AgentTraceEvent>, "policy_name": "default" }
 //! -> 200 { "decision": "PASS" | "FAIL" | "ESCALATE", "rule": ..., "reason": ..., "policy": ... }
 //!
-//! GET /healthz -> 200 "ok"
+//! POST /v1/events                                       (single event OR array)
+//! -> 200 { "stored": N }
+//!
+//! GET /v1/events?agent_id=&session_id=&limit=N          (list)
+//! GET /v1/sessions                                      (per-(agent,session) summary)
+//! GET /v1/sessions/:agent_id/:session_id                (one session)
+//! GET /healthz                                          (liveness)
 //! ```
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::routing::{get, post};
-use axum::{Json, Router};
-use serde::Deserialize;
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
-use trustlayer_core::{AgentTraceEvent, CynepicGuardian, Policy, Verdict};
-
-#[derive(Deserialize)]
-struct CheckRequest {
-    event: AgentTraceEvent,
-    #[serde(default)]
-    #[allow(dead_code)] // reserved for multi-policy support
-    policy_name: Option<String>,
-}
-
-#[derive(Clone)]
-struct AppState {
-    guardian: Arc<CynepicGuardian>,
-}
+use trustlayer_core::{build_router, AppState, CynepicGuardian, EventStore, Policy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -60,14 +50,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         policy_path.display()
     );
 
-    let state = AppState {
-        guardian: Arc::new(CynepicGuardian::new(policy)),
+    let events_store = match std::env::var("TRUSTLAYER_EVENTS_PATH") {
+        Ok(s) if s.is_empty() => {
+            info!("Event store: in-memory (TRUSTLAYER_EVENTS_PATH=\"\")");
+            EventStore::in_memory()
+        }
+        Ok(s) => {
+            let p = PathBuf::from(s);
+            info!("Event store: JSONL at {}", p.display());
+            EventStore::open_jsonl(&p)?
+        }
+        Err(_) => {
+            let p = PathBuf::from("events.jsonl");
+            info!("Event store: JSONL at {} (default)", p.display());
+            EventStore::open_jsonl(&p)?
+        }
     };
 
-    let app = Router::new()
-        .route("/v1/check", post(check_handler))
-        .route("/healthz", get(|| async { "ok" }))
-        .with_state(state);
+    let state = AppState {
+        guardian: Arc::new(CynepicGuardian::new(policy)),
+        events: Arc::new(events_store),
+    };
+
+    let app = build_router(state);
 
     let bind: SocketAddr = std::env::var("TRUSTLAYER_BIND")
         .unwrap_or_else(|_| "127.0.0.1:8089".to_string())
@@ -77,14 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("trustlayer-guardian listening on http://{bind}");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())
-}
-
-async fn check_handler(
-    State(state): State<AppState>,
-    Json(req): Json<CheckRequest>,
-) -> impl IntoResponse {
-    let verdict: Verdict = state.guardian.evaluate(&req.event);
-    (StatusCode::OK, Json(verdict))
 }
 
 async fn shutdown_signal() {

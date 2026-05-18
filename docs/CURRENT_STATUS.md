@@ -1,6 +1,6 @@
 # Current Status
 
-**Phase:** Phase 5 — MCP server shipped; dashboard scaffolded (data source TBD)
+**Phase:** Phase 5 — MCP server + trace-store API + dashboard Traces pane all live
 **Overall Status:** GREEN
 
 ## 📋 Roadmap & Task List
@@ -59,14 +59,17 @@
 - [ ] (User action) `npm install -g gitnexus@latest` with `GITNEXUS_SKIP_OPTIONAL_GRAMMARS=1` — blocked by auto-classifier as third-party global install.
 
 ### Phase 5: Dashboard & MCP Server
-- [~] TrustLayer Dashboard — `dashboard/` Vite + React + TS strict shell scaffolded. Four placeholder panes (Traces, Sessions, Reflections, Policy). `npm run typecheck` + `npm run build` green. Data source deferred (see ADR-006).
-- [x] TrustLayer MCP Server — `mcp-server/` Python package using FastMCP over stdio. Five tools wrap the Python SDK + Guardian + Hermes: `trustlayer_emit_event`, `trustlayer_guardian_check`, `trustlayer_hermes_ingest`, `trustlayer_hermes_get_session`, `trustlayer_hermes_reflect`. Pure handlers in `tools.py`, transport-free; `server.py` is the FastMCP wrapper. 12/12 pytest cases land with the scaffold. ADR-006 records the design.
-- [ ] (Follow-up) Pick dashboard data source (JSONL / vault / ingest service) and wire the Traces pane.
-- [ ] (Follow-up) Decide whether dashboard reads vault state via the MCP server or directly from disk.
+- [x] TrustLayer Dashboard — `dashboard/` Vite + React + TS strict shell. **Traces pane is live**, polling `GET /v1/events` every 5s with empty / loading / error states. Sessions, Reflections, Policy still placeholders.
+- [x] TrustLayer MCP Server — `mcp-server/` Python package using FastMCP over stdio. Five tools wrap the Python SDK + Guardian + Hermes (`trustlayer_emit_event`, `trustlayer_guardian_check`, `trustlayer_hermes_ingest`, `trustlayer_hermes_get_session`, `trustlayer_hermes_reflect`). Pure handlers in `tools.py`, transport-free; 12/12 pytest cases.
+- [x] Trace-store API — `trustlayer-guardian` binary now also serves `POST /v1/events`, `GET /v1/events`, `GET /v1/sessions`, `GET /v1/sessions/:agent/:session`. `EventStore` in `core-rs/src/events.rs` (append-only JSONL, idempotent on `trace_id`, replay on open). Router extracted to `core-rs/src/server.rs` so binary + tests share one source of truth. Permissive CORS so dashboard can fetch cross-origin. 8 new lib unit tests + 6 HTTP integration tests via `tower::ServiceExt::oneshot` (no TCP bind needed). ADR-006 updated.
+- [ ] (Follow-up) Wire Sessions pane to `GET /v1/sessions`.
+- [ ] (Follow-up) Decide whether Reflections pane reads markdown directly or via the MCP server.
+- [ ] (Follow-up) Auth/token gating on ingest routes (loopback-only for v0).
 - [ ] (User action) Register `trustlayer-mcp` in `.claude/settings.json` — blocked by auto-classifier on agent-config self-modification.
 
 ## 📝 Recent Updates
-- **2026-05-17** (latest): Phase 5 — MCP server shipped, dashboard scaffolded. New top-level `mcp-server/` (Python, FastMCP stdio, 5 tools wrapping SDK + Guardian + Hermes, 12/12 pytest green) and `dashboard/` (Vite + React + TS strict, four placeholder panes, typecheck + build green). Handlers are transport-free in `tools.py` so they unit-test directly. ADR-006 captures the layout decision, the Python-for-MCP rationale, the stdio-for-v1 choice, and the explicitly deferred trace-store decision for the dashboard.
+- **2026-05-18** (latest): Phase 5 — trace-store API shipped on the Rust sidecar; dashboard Traces pane wired. New `EventStore` (in-memory + append-only JSONL, idempotent on `trace_id`, replay on open) and four routes on `trustlayer-guardian`: `POST /v1/events`, `GET /v1/events`, `GET /v1/sessions`, `GET /v1/sessions/:agent/:session`. Router pulled into `core-rs/src/server.rs` so the binary and integration tests share one source of truth. Permissive CORS via `tower-http`. Dashboard polls `GET /v1/events?limit=50` every 5 s with loading / error / empty states. Live curl smoke verified the full POST → GET round-trip plus CORS preflight. Rust tests: +8 unit + 6 HTTP integration; **33 Rust tests green** (was 19). All 4 layers stay green — 143 tests total. ADR-006 marked resolved on the trace-store decision.
+- **2026-05-17**: Phase 5 — MCP server shipped, dashboard scaffolded. New top-level `mcp-server/` (Python, FastMCP stdio, 5 tools wrapping SDK + Guardian + Hermes, 12/12 pytest green) and `dashboard/` (Vite + React + TS strict, four placeholder panes, typecheck + build green). Handlers are transport-free in `tools.py` so they unit-test directly. ADR-006 captures the layout decision, the Python-for-MCP rationale, the stdio-for-v1 choice, and the explicitly deferred trace-store decision for the dashboard.
 - **2026-05-16**: Phase 4.5 closed. Python `Tracer.check()` shipped (commit 3cccc6e, 4 new pytest cases) and TypeScript SDK gained `GuardianClient` + `Tracer.check()` parity (11 new vitest cases). All four layers green: Python 27/27, Hermes 44/44, Rust 19/19, TypeScript 27/27 — 117 tests total.
 - **2026-05-13** (latest): Phase 4.6 — code-graph sense-making landed. New `skills/hermes/code_graph.py` with `CodeGraphImporter` (Pydantic v2 `CodeNode`/`CodeEdge`, generic JSON input), new `import-code-graph` CLI subcommand, output in a new `obsidian_vault/06_Code_Graph/` surface so the static code graph and runtime memory traces share one navigable vault. 11 new pytest cases, 44/44 total green. ADR-005 captures the design and the PolyForm Noncommercial licensing caveat on GitNexus. Two follow-up actions are user-gated (auto-classifier blocked agent-config self-modification and the global npm install).
 - **2026-05-13** (later): Phase 4 — cynepic-guardian shipped. Rust core lib (schema mirror, CSL policy parser, ordered evaluator with Cynefin-aware default), Axum HTTP sidecar binary, Python `GuardianClient` (fail-open by default), 19/19 Rust tests + 8 new Python tests, live end-to-end smoke across FAIL/ESCALATE/PASS scenarios. ADR-004 captures the design.

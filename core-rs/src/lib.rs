@@ -7,11 +7,17 @@
 //! No `unwrap()`s on production paths — see `CLAUDE.md`.
 
 pub mod error;
+pub mod events;
 pub mod guardian;
 pub mod policy;
 pub mod schema;
+#[cfg(feature = "server")]
+pub mod server;
 
 pub use error::{Error, Result};
+pub use events::{EventFilter, EventStore, SessionSummary};
 pub use guardian::{CynepicGuardian, Verdict};
 pub use policy::{MatchSpec, Policy, PolicyRule};
 pub use schema::{AgentTraceEvent, CynefinDomain, Decision, EventType, Metrics};
+#[cfg(feature = "server")]
+pub use server::{build_router, AppState};

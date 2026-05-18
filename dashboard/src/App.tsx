@@ -1,9 +1,6 @@
-const PANES: ReadonlyArray<{ title: string; blurb: string }> = [
-  {
-    title: "Traces",
-    blurb:
-      "Browse AgentTraceEvent streams emitted by the Python / TypeScript SDKs.",
-  },
+import { TracesPane } from "./TracesPane.js";
+
+const PLACEHOLDER_PANES: ReadonlyArray<{ title: string; blurb: string }> = [
   {
     title: "Sessions",
     blurb: "Per-(agent, session) timelines rehydrated from Hermes.",
@@ -25,11 +22,23 @@ export function App() {
       <header style={headerStyle}>
         <h1 style={{ margin: 0 }}>TrustLayer</h1>
         <p style={{ marginTop: 8, opacity: 0.7 }}>
-          Observability and policy plane for agentic AI — Phase 5 scaffold.
+          Observability and policy plane for agentic AI.
         </p>
       </header>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={paneHeadingStyle}>Traces</h2>
+        <p style={paneBlurbStyle}>
+          Live AgentTraceEvent stream from the TrustLayer sidecar
+          (<code>GET /v1/events</code>).
+        </p>
+        <div style={paneBodyStyle}>
+          <TracesPane />
+        </div>
+      </section>
+
       <section style={gridStyle}>
-        {PANES.map((p) => (
+        {PLACEHOLDER_PANES.map((p) => (
           <article key={p.title} style={cardStyle}>
             <h2 style={{ margin: 0 }}>{p.title}</h2>
             <p style={{ marginTop: 8 }}>{p.blurb}</p>
@@ -43,7 +52,7 @@ export function App() {
 
 const containerStyle: React.CSSProperties = {
   fontFamily: "system-ui, -apple-system, sans-serif",
-  maxWidth: 960,
+  maxWidth: 1080,
   margin: "0 auto",
   padding: "32px 24px",
   color: "#1a1a1a",
@@ -53,6 +62,24 @@ const headerStyle: React.CSSProperties = {
   borderBottom: "1px solid #e5e5e5",
   paddingBottom: 24,
   marginBottom: 24,
+};
+
+const paneHeadingStyle: React.CSSProperties = {
+  margin: 0,
+};
+
+const paneBlurbStyle: React.CSSProperties = {
+  marginTop: 4,
+  marginBottom: 12,
+  opacity: 0.7,
+  fontSize: 13,
+};
+
+const paneBodyStyle: React.CSSProperties = {
+  border: "1px solid #e5e5e5",
+  borderRadius: 8,
+  padding: 16,
+  background: "#fafafa",
 };
 
 const gridStyle: React.CSSProperties = {
