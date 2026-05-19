@@ -18,6 +18,14 @@ function baseUrl(): string {
   return fromEnv ?? DEFAULT_BASE;
 }
 
+export interface SessionSummary {
+  agent_id: string;
+  session_id: string;
+  event_count: number;
+  first_seen: string;
+  last_seen: string;
+}
+
 export async function fetchEvents(
   filters: { agent_id?: string; session_id?: string; limit?: number } = {},
   signal?: AbortSignal,
@@ -29,9 +37,28 @@ export async function fetchEvents(
     params.set("limit", String(filters.limit));
   const qs = params.toString();
   const url = `${baseUrl()}/v1/events${qs ? `?${qs}` : ""}`;
+  return getJson<AgentTraceEvent[]>(url, signal);
+}
+
+export async function fetchSessions(
+  signal?: AbortSignal,
+): Promise<SessionSummary[]> {
+  return getJson<SessionSummary[]>(`${baseUrl()}/v1/sessions`, signal);
+}
+
+export async function fetchSession(
+  agentId: string,
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<AgentTraceEvent[]> {
+  const url = `${baseUrl()}/v1/sessions/${encodeURIComponent(agentId)}/${encodeURIComponent(sessionId)}`;
+  return getJson<AgentTraceEvent[]>(url, signal);
+}
+
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
   if (!res.ok) {
     throw new Error(`GET ${url} -> HTTP ${res.status}`);
   }
-  return (await res.json()) as AgentTraceEvent[];
+  return (await res.json()) as T;
 }

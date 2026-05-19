@@ -1,10 +1,7 @@
+import { SessionsPane } from "./SessionsPane.js";
 import { TracesPane } from "./TracesPane.js";
 
 const PLACEHOLDER_PANES: ReadonlyArray<{ title: string; blurb: string }> = [
-  {
-    title: "Sessions",
-    blurb: "Per-(agent, session) timelines rehydrated from Hermes.",
-  },
   {
     title: "Reflections",
     blurb: "Deterministic and LLM-backed structural summaries.",
@@ -34,6 +31,18 @@ export function App() {
         </p>
         <div style={paneBodyStyle}>
           <TracesPane />
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={paneHeadingStyle}>Sessions</h2>
+        <p style={paneBlurbStyle}>
+          Per-(agent, session) summaries (<code>GET /v1/sessions</code>).
+          Click a row to drill into its timeline
+          (<code>GET /v1/sessions/:agent/:session</code>).
+        </p>
+        <div style={paneBodyStyle}>
+          <SessionsPane />
         </div>
       </section>
 
