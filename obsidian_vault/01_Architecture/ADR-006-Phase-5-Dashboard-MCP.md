@@ -118,12 +118,16 @@ docs, obsidian_vault) sit at the same level as the user reading them.
   cannot show live data until that lands; we should not let that drag.
 
 ## Follow-ups
-- Wire the Sessions pane to `GET /v1/sessions` (cheap — same fetch
-  shape as the Traces pane) and the per-session drill-down to
-  `GET /v1/sessions/:agent/:session`.
-- Decide whether the Reflections pane reads vault markdown directly
-  or goes through the MCP server's `trustlayer_hermes_reflect` tool.
-  The latter keeps the contract uniform; the former skips a hop.
+- ~~Wire the Sessions pane~~ — done 2026-05-19.
+- **Reflections pane (resolved 2026-05-22): serve Hermes output.** The
+  sidecar lists/reads the vault's `05_Reflections/` notes via
+  `GET /v1/reflections` + `GET /v1/reflections/:name`
+  (`core-rs/src/reflections.rs`, path-traversal guarded). Reflection
+  *generation* stays Hermes's job — the Python CLI or the
+  `trustlayer_hermes_reflect` MCP tool. The dashboard never triggers a
+  reflect; it only renders. This keeps the dashboard ↔ sidecar HTTP
+  contract uniform (one data plane) without giving the sidecar a
+  dependency on the Python Hermes package.
 - Auth/token gating on the ingest routes (currently open). Acceptable
   for v0 because we listen on loopback only.
 - Switch the sync `Mutex` in `EventStore` to a `tokio::sync::Mutex`

@@ -26,13 +26,30 @@ export interface SessionSummary {
   last_seen: string;
 }
 
+export interface ReflectionMeta {
+  name: string;
+  date: string;
+}
+
+export interface Reflection {
+  name: string;
+  date: string;
+  content: string;
+}
+
 export async function fetchEvents(
-  filters: { agent_id?: string; session_id?: string; limit?: number } = {},
+  filters: {
+    agent_id?: string;
+    session_id?: string;
+    event_type?: string;
+    limit?: number;
+  } = {},
   signal?: AbortSignal,
 ): Promise<AgentTraceEvent[]> {
   const params = new URLSearchParams();
   if (filters.agent_id) params.set("agent_id", filters.agent_id);
   if (filters.session_id) params.set("session_id", filters.session_id);
+  if (filters.event_type) params.set("event_type", filters.event_type);
   if (filters.limit !== undefined)
     params.set("limit", String(filters.limit));
   const qs = params.toString();
@@ -53,6 +70,20 @@ export async function fetchSession(
 ): Promise<AgentTraceEvent[]> {
   const url = `${baseUrl()}/v1/sessions/${encodeURIComponent(agentId)}/${encodeURIComponent(sessionId)}`;
   return getJson<AgentTraceEvent[]>(url, signal);
+}
+
+export async function fetchReflections(
+  signal?: AbortSignal,
+): Promise<ReflectionMeta[]> {
+  return getJson<ReflectionMeta[]>(`${baseUrl()}/v1/reflections`, signal);
+}
+
+export async function fetchReflection(
+  name: string,
+  signal?: AbortSignal,
+): Promise<Reflection> {
+  const url = `${baseUrl()}/v1/reflections/${encodeURIComponent(name)}`;
+  return getJson<Reflection>(url, signal);
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {

@@ -4,6 +4,7 @@
 //! has to bind a TCP port. Covers the full POST -> GET round-trip plus
 //! filtering and session enumeration.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::body::{to_bytes, Body};
@@ -41,10 +42,25 @@ const EVENT_B_S1: &str = r#"{
 }"#;
 
 fn test_state() -> AppState {
+    state_with_vault(std::env::temp_dir())
+}
+
+fn state_with_vault(vault: PathBuf) -> AppState {
     AppState {
         guardian: Arc::new(CynepicGuardian::new(Policy::empty("test"))),
         events: Arc::new(EventStore::in_memory()),
+        vault_path: Arc::new(vault),
     }
+}
+
+/// Create a throwaway vault with one reflection note and return its root.
+fn vault_with_reflection(name: &str, body: &str) -> PathBuf {
+    let mut root = std::env::temp_dir();
+    root.push(format!("trustlayer-http-vault-{}", uuid::Uuid::new_v4()));
+    let dir = root.join("05_Reflections");
+    std::fs::create_dir_all(&dir).expect("mkdir vault");
+    std::fs::write(dir.join(name), body).expect("write reflection");
+    root
 }
 
 async fn post_json(app: axum::Router, uri: &str, body: &str) -> (StatusCode, Value) {
@@ -170,4 +186,81 @@ async fn check_route_still_works_after_event_routes_added() {
     let (status, body) = post_json(app, "/v1/check", &body).await;
     assert_eq!(status, StatusCode::OK);
     assert!(body["decision"].is_string());
+}
+
+const POLICY_CHECK_EVENT: &str = r#"{
+    "trace_id": "44444444-4444-4444-8444-444444444444",
+    "agent_id": "a",
+    "session_id": "s1",
+    "timestamp": "2026-05-22T10:00:05+00:00",
+    "event_type": "POLICY_CHECK",
+    "payload": {"policy_name": "default", "action": "invoke calc", "result": "PASS"}
+}"#;
+
+#[tokio::test]
+async fn list_events_filters_by_event_type() {
+    let state = test_state();
+    for raw in [EVENT_A_S1, POLICY_CHECK_EVENT] {
+        let app = build_router(state.clone());
+        let _ = post_json(app, "/v1/events", raw).await;
+    }
+
+    let app = build_router(state.clone());
+    let (status, body) = get_json(app, "/v1/events?event_type=POLICY_CHECK").await;
+    assert_eq!(status, StatusCode::OK);
+    let arr = body.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["event_type"], "POLICY_CHECK");
+
+    let app = build_router(state);
+    let (_, body) = get_json(app, "/v1/events?event_type=TOOL_CALL").await;
+    assert_eq!(body.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn list_reflections_returns_vault_notes() {
+    let vault = vault_with_reflection("reflection-2026-05-22.md", "# Reflection\nbody");
+    let app = build_router(state_with_vault(vault));
+    let (status, body) = get_json(app, "/v1/reflections").await;
+    assert_eq!(status, StatusCode::OK);
+    let arr = body.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["name"], "reflection-2026-05-22.md");
+    assert_eq!(arr[0]["date"], "2026-05-22");
+}
+
+#[tokio::test]
+async fn get_reflection_returns_content() {
+    let vault = vault_with_reflection("reflection-2026-05-22.md", "# Reflection\nhello");
+    let app = build_router(state_with_vault(vault));
+    let (status, body) = get_json(app, "/v1/reflections/reflection-2026-05-22.md").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["date"], "2026-05-22");
+    assert!(body["content"].as_str().unwrap().contains("hello"));
+}
+
+#[tokio::test]
+async fn get_reflection_rejects_path_traversal() {
+    let vault = vault_with_reflection("reflection-2026-05-22.md", "x");
+    let app = build_router(state_with_vault(vault));
+    // axum normalises `..` segments, so the crafted name still has to be
+    // rejected by the is_safe_name guard for any form that reaches the handler.
+    let (status, _) = get_json(app, "/v1/reflections/not-a-reflection.txt").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn get_reflection_missing_returns_404() {
+    let vault = vault_with_reflection("reflection-2026-05-22.md", "x");
+    let app = build_router(state_with_vault(vault));
+    let (status, _) = get_json(app, "/v1/reflections/reflection-2099-01-01.md").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn list_reflections_empty_vault_returns_empty_array() {
+    let app = build_router(test_state());
+    let (status, body) = get_json(app, "/v1/reflections").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.as_array().unwrap().is_empty());
 }

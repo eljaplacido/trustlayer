@@ -14,11 +14,16 @@
 //! POST /v1/events                                       (single event OR array)
 //! -> 200 { "stored": N }
 //!
-//! GET /v1/events?agent_id=&session_id=&limit=N          (list)
+//! GET /v1/events?agent_id=&session_id=&event_type=&limit=N   (list)
 //! GET /v1/sessions                                      (per-(agent,session) summary)
 //! GET /v1/sessions/:agent_id/:session_id                (one session)
+//! GET /v1/reflections                                   (Hermes reflection notes)
+//! GET /v1/reflections/:name                             (one reflection note)
 //! GET /healthz                                          (liveness)
 //! ```
+//!
+//! Reflection notes are read from `TRUSTLAYER_VAULT_PATH` (default
+//! `./obsidian_vault`); generation stays Hermes's job.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -67,9 +72,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    let vault_path = std::env::var("TRUSTLAYER_VAULT_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("obsidian_vault"));
+    info!("Reflection vault: {}", vault_path.display());
+
     let state = AppState {
         guardian: Arc::new(CynepicGuardian::new(policy)),
         events: Arc::new(events_store),
+        vault_path: Arc::new(vault_path),
     };
 
     let app = build_router(state);

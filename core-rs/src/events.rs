@@ -26,7 +26,7 @@ use std::sync::Mutex;
 use serde::Serialize;
 
 use crate::error::{Error, Result};
-use crate::schema::AgentTraceEvent;
+use crate::schema::{AgentTraceEvent, EventType};
 
 type SessionKey = (String, String);
 
@@ -35,6 +35,7 @@ type SessionKey = (String, String);
 pub struct EventFilter {
     pub agent_id: Option<String>,
     pub session_id: Option<String>,
+    pub event_type: Option<EventType>,
     pub limit: Option<usize>,
 }
 
@@ -161,6 +162,9 @@ impl EventStore {
                         .session_id
                         .as_deref()
                         .map_or(true, |s| e.session_id == s)
+                    && filter
+                        .event_type
+                        .map_or(true, |t| e.event_type == t)
             })
             .cloned()
             .collect();
@@ -306,6 +310,37 @@ mod tests {
         });
         assert_eq!(a_s2.len(), 1);
         assert_eq!(a_s2[0].session_id, "s2");
+    }
+
+    #[test]
+    fn list_events_filters_by_event_type() {
+        let store = EventStore::in_memory();
+        store
+            .append(sample_event(
+                "11111111-1111-4111-8111-111111111111",
+                "a",
+                "s",
+            ))
+            .unwrap();
+        let policy_check: AgentTraceEvent = serde_json::from_str(
+            r#"{
+                "trace_id": "22222222-2222-4222-8222-222222222222",
+                "agent_id": "a",
+                "session_id": "s",
+                "timestamp": "2026-05-22T10:00:00+00:00",
+                "event_type": "POLICY_CHECK",
+                "payload": {"policy_name": "default", "action": "x", "result": "PASS"}
+            }"#,
+        )
+        .expect("parse");
+        store.append(policy_check).unwrap();
+
+        let only_policy = store.list_events(&EventFilter {
+            event_type: Some(EventType::PolicyCheck),
+            ..Default::default()
+        });
+        assert_eq!(only_policy.len(), 1);
+        assert_eq!(only_policy[0].event_type, EventType::PolicyCheck);
     }
 
     #[test]

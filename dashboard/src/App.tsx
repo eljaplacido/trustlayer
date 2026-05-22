@@ -1,17 +1,7 @@
+import { PolicyPane } from "./PolicyPane.js";
+import { ReflectionsPane } from "./ReflectionsPane.js";
 import { SessionsPane } from "./SessionsPane.js";
 import { TracesPane } from "./TracesPane.js";
-
-const PLACEHOLDER_PANES: ReadonlyArray<{ title: string; blurb: string }> = [
-  {
-    title: "Reflections",
-    blurb: "Deterministic and LLM-backed structural summaries.",
-  },
-  {
-    title: "Policy",
-    blurb:
-      "Live cynepic-guardian verdicts: PASS / FAIL / ESCALATE and the rule that fired.",
-  },
-];
 
 export function App() {
   return (
@@ -23,39 +13,70 @@ export function App() {
         </p>
       </header>
 
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={paneHeadingStyle}>Traces</h2>
-        <p style={paneBlurbStyle}>
-          Live AgentTraceEvent stream from the TrustLayer sidecar
-          (<code>GET /v1/events</code>).
-        </p>
-        <div style={paneBodyStyle}>
-          <TracesPane />
-        </div>
-      </section>
+      <Pane
+        title="Traces"
+        blurb={
+          <>
+            Live AgentTraceEvent stream from the TrustLayer sidecar
+            (<code>GET /v1/events</code>).
+          </>
+        }
+      >
+        <TracesPane />
+      </Pane>
 
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={paneHeadingStyle}>Sessions</h2>
-        <p style={paneBlurbStyle}>
-          Per-(agent, session) summaries (<code>GET /v1/sessions</code>).
-          Click a row to drill into its timeline
-          (<code>GET /v1/sessions/:agent/:session</code>).
-        </p>
-        <div style={paneBodyStyle}>
-          <SessionsPane />
-        </div>
-      </section>
+      <Pane
+        title="Sessions"
+        blurb={
+          <>
+            Per-(agent, session) summaries (<code>GET /v1/sessions</code>).
+            Click a row to drill into its timeline
+            (<code>GET /v1/sessions/:agent/:session</code>).
+          </>
+        }
+      >
+        <SessionsPane />
+      </Pane>
 
-      <section style={gridStyle}>
-        {PLACEHOLDER_PANES.map((p) => (
-          <article key={p.title} style={cardStyle}>
-            <h2 style={{ margin: 0 }}>{p.title}</h2>
-            <p style={{ marginTop: 8 }}>{p.blurb}</p>
-            <span style={pillStyle}>not wired yet</span>
-          </article>
-        ))}
-      </section>
+      <Pane
+        title="Reflections"
+        blurb={
+          <>
+            Hermes-generated structural summaries
+            (<code>GET /v1/reflections</code>). Generation stays Hermes's
+            job; the dashboard lists and renders.
+          </>
+        }
+      >
+        <ReflectionsPane />
+      </Pane>
+
+      <Pane
+        title="Policy"
+        blurb={
+          <>
+            cynepic-guardian verdicts — recent <code>POLICY_CHECK</code>{" "}
+            events (<code>GET /v1/events?event_type=POLICY_CHECK</code>).
+          </>
+        }
+      >
+        <PolicyPane />
+      </Pane>
     </main>
+  );
+}
+
+function Pane(props: {
+  title: string;
+  blurb: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section style={{ marginBottom: 24 }}>
+      <h2 style={{ margin: 0 }}>{props.title}</h2>
+      <p style={paneBlurbStyle}>{props.blurb}</p>
+      <div style={paneBodyStyle}>{props.children}</div>
+    </section>
   );
 }
 
@@ -73,10 +94,6 @@ const headerStyle: React.CSSProperties = {
   marginBottom: 24,
 };
 
-const paneHeadingStyle: React.CSSProperties = {
-  margin: 0,
-};
-
 const paneBlurbStyle: React.CSSProperties = {
   marginTop: 4,
   marginBottom: 12,
@@ -89,27 +106,4 @@ const paneBodyStyle: React.CSSProperties = {
   borderRadius: 8,
   padding: 16,
   background: "#fafafa",
-};
-
-const gridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  gap: 16,
-};
-
-const cardStyle: React.CSSProperties = {
-  border: "1px solid #e5e5e5",
-  borderRadius: 8,
-  padding: 16,
-  background: "#fafafa",
-};
-
-const pillStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 12,
-  padding: "2px 8px",
-  borderRadius: 999,
-  background: "#fee",
-  color: "#a33",
-  fontSize: 12,
 };

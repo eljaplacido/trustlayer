@@ -4,6 +4,7 @@
 //! exercise the routes through `tower::ServiceExt::oneshot` without binding
 //! a TCP port.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
@@ -16,12 +17,15 @@ use tower_http::cors::{Any, CorsLayer};
 
 use crate::events::{EventFilter, EventStore};
 use crate::guardian::{CynepicGuardian, Verdict};
-use crate::schema::AgentTraceEvent;
+use crate::reflections;
+use crate::schema::{AgentTraceEvent, EventType};
 
 #[derive(Clone)]
 pub struct AppState {
     pub guardian: Arc<CynepicGuardian>,
     pub events: Arc<EventStore>,
+    /// Obsidian vault root — reflection notes live under `05_Reflections/`.
+    pub vault_path: Arc<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -44,6 +48,7 @@ enum EventBody {
 struct ListEventsQuery {
     agent_id: Option<String>,
     session_id: Option<String>,
+    event_type: Option<EventType>,
     limit: Option<usize>,
 }
 
@@ -63,6 +68,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/events", post(ingest_handler).get(list_events_handler))
         .route("/v1/sessions", get(list_sessions_handler))
         .route("/v1/sessions/:agent_id/:session_id", get(get_session_handler))
+        .route("/v1/reflections", get(list_reflections_handler))
+        .route("/v1/reflections/:name", get(get_reflection_handler))
         .route("/healthz", get(|| async { "ok" }))
         .layer(cors)
         .with_state(state)
@@ -101,6 +108,7 @@ async fn list_events_handler(
     let filter = EventFilter {
         agent_id: q.agent_id,
         session_id: q.session_id,
+        event_type: q.event_type,
         limit: q.limit,
     };
     let events = state.events.list_events(&filter);
@@ -118,4 +126,41 @@ async fn get_session_handler(
 ) -> impl IntoResponse {
     let events = state.events.get_session(&agent_id, &session_id);
     (StatusCode::OK, Json(events))
+}
+
+async fn list_reflections_handler(State(state): State<AppState>) -> impl IntoResponse {
+    match reflections::list(state.vault_path.as_ref()) {
+        Ok(metas) => (StatusCode::OK, Json(metas)).into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": err.to_string()})),
+        )
+            .into_response(),
+    }
+}
+
+async fn get_reflection_handler(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+) -> impl IntoResponse {
+    if !reflections::is_safe_name(&name) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid reflection name"})),
+        )
+            .into_response();
+    }
+    match reflections::read(state.vault_path.as_ref(), &name) {
+        Ok(Some(reflection)) => (StatusCode::OK, Json(reflection)).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "reflection not found"})),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": err.to_string()})),
+        )
+            .into_response(),
+    }
 }
