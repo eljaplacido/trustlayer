@@ -68,7 +68,7 @@ PYTHONPATH=src:../sdks/python/src:../skills .venv/bin/python -m pytest
 .venv/bin/trustlayer-mcp        # serve over stdio
 
 # Dashboard (React + Vite)
-cd dashboard && npm install && npm run typecheck && npm run build
+cd dashboard && npm install && npm run typecheck && npm test && npm run build
 npm run dev   # http://localhost:5173
 ```
 
