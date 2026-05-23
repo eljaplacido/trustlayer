@@ -1,13 +1,14 @@
 ---
 skill: hermes
 status: active
-description: Recursive memory and reflection subagent
-version: 0.2.0
+description: Recursive memory, reflection, and code-graph subagent
+version: 0.3.0
 entry_point: skills/hermes/cli.py
 schema_owner: trustlayer.schema.AgentTraceEvent
 links:
   - "[[../01_Architecture/ADR-002-Hermes-Memory-Agent]]"
   - "[[../01_Architecture/ADR-003-Hermes-Token-Memory-Model]]"
+  - "[[../01_Architecture/ADR-005-Code-Graph-Integration]]"
 ---
 
 # Hermes
@@ -49,10 +50,22 @@ PYTHONPATH=skills python -m hermes.cli \
     ingest path/to/traces.jsonl --reflect
 ```
 
+## Code graph (Phase 4.6)
+`import-code-graph` reads a GitNexus-style JSON graph and emits one
+Obsidian note per node into `06_Code_Graph/<language>/`. See
+[[../01_Architecture/ADR-005-Code-Graph-Integration]].
+
+```bash
+PYTHONPATH=skills python -m hermes.cli \
+    --vault obsidian_vault \
+    import-code-graph --gitnexus-root .gitnexus
+```
+
 ## Layout
 - `skills/hermes/hermes_agent.py` — `HermesAgent`
 - `skills/hermes/reflector.py` — `ReflectionEngine` Protocol +
   `DeterministicReflector` + `SessionSummary.compact_text()`
 - `skills/hermes/render.py` — markdown rendering
-- `skills/hermes/cli.py` — `python -m hermes.cli`
-- `skills/hermes/tests/` — 33 pytest cases
+- `skills/hermes/code_graph.py` — `CodeGraphImporter` (GitNexus JSON → notes)
+- `skills/hermes/cli.py` — `python -m hermes.cli` (`ingest`, `import-code-graph`)
+- `skills/hermes/tests/` — 44 pytest cases

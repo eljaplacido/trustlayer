@@ -110,6 +110,61 @@ deserialises into a `TypedDict` of the same name.
 - `reason` is `null` for `PASS`-by-default; populated for Cynefin
   `CHAOTIC` escalations and any rule that carries its own reason text.
 
+## Trace-store HTTP API (Phase 5)
+
+The `trustlayer-guardian` binary also serves a read/write trace store
+that the dashboard consumes. All bodies are `AgentTraceEvent`-shaped or
+derived from it; nothing here introduces a second envelope.
+
+### `POST /v1/events`
+Accepts a single `AgentTraceEvent` **or** a JSON array of them — this is
+exactly what `TrustLayerClient.emit` / `emit_batch` already send.
+Idempotent on `trace_id`.
+
+```json
+// response
+{ "stored": 2 }   // count of newly-stored (non-duplicate) events
+```
+
+### `GET /v1/events?agent_id=&session_id=&event_type=&limit=N`
+Every query parameter is optional. `event_type` takes one of the
+`event_type` enum values; `limit` returns the most-recent N. Response is
+a chronological `AgentTraceEvent[]`.
+
+### `GET /v1/sessions`
+One summary per `(agent_id, session_id)` pair, most-recent first:
+
+```json
+[
+  {
+    "agent_id": "researcher-1",
+    "session_id": "S1",
+    "event_count": 12,
+    "first_seen": "2026-05-22T10:00:00+00:00",
+    "last_seen": "2026-05-22T10:03:11+00:00"
+  }
+]
+```
+
+### `GET /v1/sessions/:agent_id/:session_id`
+Chronological `AgentTraceEvent[]` for one session.
+
+### `GET /v1/reflections`
+Lists Hermes-generated reflection notes (newest first). Generation
+stays Hermes's job; the sidecar only serves what is on disk.
+
+```json
+[ { "name": "reflection-2026-05-22.md", "date": "2026-05-22" } ]
+```
+
+### `GET /v1/reflections/:name`
+One reflection note. `name` must be a bare `reflection-*.md` file name
+(path-traversal is rejected with `400`).
+
+```json
+{ "name": "reflection-2026-05-22.md", "date": "2026-05-22", "content": "---\n..." }
+```
+
 ## Compatibility
 
 | Change | Impact |

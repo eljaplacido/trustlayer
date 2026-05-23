@@ -16,8 +16,9 @@ no SaaS dependency required.
 | 3 | Hermes memory agent (Obsidian vault writer + reflector) | shipped |
 | 3.5 | Hermes token/memory optimisation | shipped |
 | 4 | Rust core: CSL policy parser + cynepic-guardian + HTTP gateway | shipped |
+| 4.5 | TypeScript guardian client + `Tracer.check()` (both SDKs) | shipped |
 | 4.6 | Hermes code-graph importer (GitNexus JSON → Obsidian notes) | shipped |
-| 5 | Dashboard + MCP server | planned |
+| 5 | Trace-store API + dashboard (4 panes) + MCP server | shipped |
 
 See [`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md) for the
 authoritative roadmap and [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
@@ -115,16 +116,47 @@ Each code entity (file, class, function) becomes one note under
 sections for Calls / Imports / Inherits / Contains. See
 [`obsidian_vault/01_Architecture/ADR-005-Code-Graph-Integration.md`](./obsidian_vault/01_Architecture/ADR-005-Code-Graph-Integration.md).
 
+### Browse traces in the dashboard
+
+```bash
+# 1. Run the guardian/trace-store sidecar (serves /v1/events etc.):
+cd core-rs
+TRUSTLAYER_VAULT_PATH=../obsidian_vault \
+  cargo run --release --features server --bin trustlayer-guardian
+
+# 2. Run the dashboard:
+cd dashboard && npm install && npm run dev   # http://localhost:5173
+```
+
+The dashboard has four live panes — Traces, Sessions, Reflections,
+Policy — polling the sidecar's trace-store API. Point it elsewhere with
+`VITE_TRUSTLAYER_BASE_URL`.
+
+### Drive TrustLayer from an MCP client
+
+```bash
+cd mcp-server
+python -m venv .venv && .venv/bin/pip install -e ../sdks/python -e .
+.venv/bin/trustlayer-mcp        # FastMCP stdio server
+```
+
+Exposes `trustlayer_emit_event`, `trustlayer_guardian_check`,
+`trustlayer_hermes_ingest`, `trustlayer_hermes_get_session`, and
+`trustlayer_hermes_reflect` as MCP tools. See
+[`mcp-server/README.md`](./mcp-server/README.md).
+
 ## Repo layout
 
 ```
 trustlayer/
-├── core-rs/                 Rust core (Phase 4)
+├── core-rs/                 Rust core + trace-store sidecar (Phase 4–5)
 ├── sdks/
 │   ├── python/              trustlayer-sdk
 │   └── typescript/          @trustlayer/sdk
 ├── skills/
 │   └── hermes/              memory subagent (CLI + library)
+├── mcp-server/              MCP bridge to SDK + guardian + Hermes (Phase 5)
+├── dashboard/               React + Vite observability UI (Phase 5)
 ├── obsidian_vault/          ADRs, agent skills, memory, reflections
 └── docs/                    SCHEMA, ARCHITECTURE, CURRENT_STATUS
 ```

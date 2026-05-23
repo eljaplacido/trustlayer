@@ -1,8 +1,9 @@
 # TrustLayer Architecture
 
 TrustLayer is the **open governance, observability, and trust layer for
-multi-agent AI systems.** It is built as three loosely-coupled layers
-around a single canonical wire format.
+multi-agent AI systems.** It is built as four loosely-coupled layers —
+Instrument, Evaluate, Reflect, Observe — around a single canonical wire
+format.
 
 ## The wire format is the contract
 
@@ -66,19 +67,46 @@ periodic reflection pass produces dated synthesis notes in
 memory- and token-bounded by design (see [ADR-003] in
 `obsidian_vault/01_Architecture/`).
 
+### 4. Observe (Phase 5 — shipped)
+The read side. Two surfaces sit on top of the three layers above:
+
+- **Trace-store API** — the `trustlayer-guardian` binary also serves a
+  small HTTP store: `POST /v1/events` ingests events to append-only
+  JSONL; `GET /v1/events`, `/v1/sessions`, `/v1/sessions/:a/:s`,
+  `/v1/reflections`, `/v1/reflections/:name` read them back. See the
+  trace-store section of [`SCHEMA.md`](./SCHEMA.md).
+- **Dashboard** (`dashboard/`) — a React + Vite SPA with four panes
+  (Traces, Sessions, Reflections, Policy) that polls the trace-store
+  API. CORS is permissive so it can run on its own port.
+- **MCP server** (`mcp-server/`) — a Python FastMCP stdio server that
+  exposes the SDK, guardian, and Hermes as MCP tools so any MCP-aware
+  agent can drive TrustLayer without per-language bindings.
+
+The dashboard never triggers a reflection — it renders what Hermes
+already produced. Reflection *generation* stays in layer 3. See
+[ADR-006] for the layout and transport rationale.
+
 ## Data flow today
 
 ```
-                          ┌────────────────────────────┐
-agent process ──SDK──>    │  cynepic-guardian (HTTP)   │  ──> PASS / FAIL / ESCALATE
-       │                  │  core-rs/trustlayer-guardian│
-       │                  └────────────────────────────┘
+                          ┌─────────────────────────────────┐
+agent process ──SDK──>    │  trustlayer-guardian (HTTP)      │
+       │                  │  core-rs/                        │
+       │   POST /v1/check │   ├─ /v1/check ─> PASS/FAIL/ESCAL │
+       │   POST /v1/events│   └─ trace store ─> events.jsonl  │
+       │                  └─────────────────┬────────────────┘
+       │                                    │  GET /v1/events,
+       │                                    │  /v1/sessions, /v1/reflections
+       │                                    ▼
+       │                            dashboard/ (React SPA)
        │
        └── all events ──> [JSONL tee] ──> Hermes ──> Obsidian vault
                                               │
                                               ├─> .hermes_state/   (sidecar JSONL, runtime only)
                                               ├─> 03_Memory_Traces/ (session notes)
                                               └─> 05_Reflections/   (synthesis notes)
+
+MCP-aware agents ──stdio──> mcp-server/ ──> SDK + guardian + Hermes
 ```
 
 - The SDK calls `GuardianClient.check(event)` synchronously before
@@ -86,17 +114,19 @@ agent process ──SDK──>    │  cynepic-guardian (HTTP)   │  ──> PA
   instrumentation cannot make the host agent unavailable.
 - The same event flows to Hermes regardless of the verdict — the
   verdict itself is recorded as a `POLICY_CHECK` event.
-- Until a dedicated collector ships, the practical pattern is: SDK
-  emits to a local JSONL file (or mock transport in tests); a batch
-  job pipes the JSONL into `python -m hermes.cli`.
+- Events also reach the trace store via `POST /v1/events` (Phase 5);
+  the dashboard reads them back over HTTP. The older pattern — SDK
+  emits to a local JSONL file, a batch job pipes it into
+  `python -m hermes.cli` — still works and is what the tests use.
 
 ## Future optimisations (not blocking)
 
 - **FFI embedding** of the Rust guardian directly in Python (via
   `pyo3`) to drop the ~100µs HTTP cost.
-- **A dedicated collector service** that consumes events from many
-  agent processes and feeds both Hermes and the long-term store.
-- **TypeScript guardian client** for parity (Phase 4.5).
+- **Auth on the trace-store ingest routes** — they listen on loopback
+  only for v0, so token gating is a follow-up, not a blocker.
+- **MCP HTTP transport** — the MCP server is stdio-only today; an SSE
+  transport would let remote agents reach it (one-line FastMCP change).
 
 ## ADRs
 
@@ -107,6 +137,8 @@ The "why" behind each layer is recorded in
 - **ADR-002 — Hermes Memory Agent** (Phase 3, accepted)
 - **ADR-003 — Hermes context / token / memory model** (Phase 3.5, accepted)
 - **ADR-004 — cynepic-guardian + policy language** (Phase 4, accepted)
+- **ADR-005 — Code-graph sense-making via GitNexus** (Phase 4.6, accepted)
+- **ADR-006 — Phase 5: Dashboard + MCP server** (Phase 5, accepted)
 
 ## Non-goals (for now)
 - A bespoke time-series database — JSONL + Obsidian is enough for the
