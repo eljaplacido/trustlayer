@@ -111,14 +111,16 @@ mod tests {
 
     fn tempdir() -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!("trustlayer-reflections-test-{}", uuid::Uuid::new_v4()));
+        p.push(format!(
+            "trustlayer-reflections-test-{}",
+            uuid::Uuid::new_v4()
+        ));
         std::fs::create_dir_all(p.join(REFLECTION_SUBDIR)).expect("mkdir");
         p
     }
 
     fn write_reflection(vault: &Path, name: &str, body: &str) {
-        std::fs::write(vault.join(REFLECTION_SUBDIR).join(name), body)
-            .expect("write reflection");
+        std::fs::write(vault.join(REFLECTION_SUBDIR).join(name), body).expect("write reflection");
     }
 
     #[test]

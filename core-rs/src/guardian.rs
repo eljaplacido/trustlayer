@@ -58,9 +58,8 @@ impl CynepicGuardian {
                 Decision::Pass
             },
             rule: None,
-            reason: chaotic_default.then(|| {
-                "CHAOTIC domain - no rule matched; escalating by default".to_string()
-            }),
+            reason: chaotic_default
+                .then(|| "CHAOTIC domain - no rule matched; escalating by default".to_string()),
             policy: self.policy.name.clone(),
         }
     }
@@ -98,7 +97,11 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
 
-    fn event(event_type: EventType, tool_name: Option<&str>, domain: CynefinDomain) -> AgentTraceEvent {
+    fn event(
+        event_type: EventType,
+        tool_name: Option<&str>,
+        domain: CynefinDomain,
+    ) -> AgentTraceEvent {
         let mut payload = serde_json::Map::new();
         if let Some(name) = tool_name {
             payload.insert(
@@ -128,7 +131,11 @@ mod tests {
     #[test]
     fn empty_policy_returns_pass() {
         let g = CynepicGuardian::new(Policy::empty("empty"));
-        let v = g.evaluate(&event(EventType::ToolCall, Some("calc"), CynefinDomain::Clear));
+        let v = g.evaluate(&event(
+            EventType::ToolCall,
+            Some("calc"),
+            CynefinDomain::Clear,
+        ));
         assert_eq!(v.decision, Decision::Pass);
         assert_eq!(v.rule, None);
         assert_eq!(v.policy, "empty");
@@ -153,7 +160,11 @@ mod tests {
                 reason: None,
             },
         ]));
-        let v = g.evaluate(&event(EventType::ToolCall, Some("calc"), CynefinDomain::Clear));
+        let v = g.evaluate(&event(
+            EventType::ToolCall,
+            Some("calc"),
+            CynefinDomain::Clear,
+        ));
         assert_eq!(v.decision, Decision::Fail);
         assert_eq!(v.rule.as_deref(), Some("first"));
         assert_eq!(v.reason.as_deref(), Some("blocked"));
@@ -170,14 +181,22 @@ mod tests {
             decision: Decision::Fail,
             reason: None,
         }]));
-        let v = g.evaluate(&event(EventType::ToolCall, Some("web"), CynefinDomain::Clear));
+        let v = g.evaluate(&event(
+            EventType::ToolCall,
+            Some("web"),
+            CynefinDomain::Clear,
+        ));
         assert_eq!(v.decision, Decision::Pass);
     }
 
     #[test]
     fn chaotic_domain_escalates_by_default() {
         let g = CynepicGuardian::new(Policy::empty("empty"));
-        let v = g.evaluate(&event(EventType::ToolCall, Some("calc"), CynefinDomain::Chaotic));
+        let v = g.evaluate(&event(
+            EventType::ToolCall,
+            Some("calc"),
+            CynefinDomain::Chaotic,
+        ));
         assert_eq!(v.decision, Decision::Escalate);
         assert!(v.reason.as_deref().unwrap_or("").contains("CHAOTIC"));
     }
@@ -193,7 +212,11 @@ mod tests {
             decision: Decision::Pass,
             reason: None,
         }]));
-        let v = g.evaluate(&event(EventType::ToolCall, Some("calc"), CynefinDomain::Chaotic));
+        let v = g.evaluate(&event(
+            EventType::ToolCall,
+            Some("calc"),
+            CynefinDomain::Chaotic,
+        ));
         assert_eq!(v.decision, Decision::Pass);
     }
 

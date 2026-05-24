@@ -103,10 +103,7 @@ impl EventStore {
                 Self::index_existing(&mut inner, event);
             }
         }
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)?;
+        let file = OpenOptions::new().create(true).append(true).open(&path)?;
         inner.file = Some(file);
         Ok(Self {
             inner: Mutex::new(inner),
@@ -154,17 +151,12 @@ impl EventStore {
             .events
             .iter()
             .filter(|e| {
-                filter
-                    .agent_id
-                    .as_deref()
-                    .map_or(true, |a| e.agent_id == a)
+                filter.agent_id.as_deref().is_none_or(|a| e.agent_id == a)
                     && filter
                         .session_id
                         .as_deref()
-                        .map_or(true, |s| e.session_id == s)
-                    && filter
-                        .event_type
-                        .map_or(true, |t| e.event_type == t)
+                        .is_none_or(|s| e.session_id == s)
+                    && filter.event_type.is_none_or(|t| e.event_type == t)
             })
             .cloned()
             .collect();
@@ -250,11 +242,7 @@ mod tests {
     #[test]
     fn append_then_list_returns_event() {
         let store = EventStore::in_memory();
-        let event = sample_event(
-            "11111111-1111-4111-8111-111111111111",
-            "a",
-            "s",
-        );
+        let event = sample_event("11111111-1111-4111-8111-111111111111", "a", "s");
         assert!(store.append(event.clone()).expect("append"));
         let listed = store.list_events(&EventFilter::default());
         assert_eq!(listed.len(), 1);
@@ -264,11 +252,7 @@ mod tests {
     #[test]
     fn append_is_idempotent_on_trace_id() {
         let store = EventStore::in_memory();
-        let event = sample_event(
-            "11111111-1111-4111-8111-111111111111",
-            "a",
-            "s",
-        );
+        let event = sample_event("11111111-1111-4111-8111-111111111111", "a", "s");
         assert!(store.append(event.clone()).expect("first"));
         assert!(!store.append(event).expect("dup"));
         assert_eq!(store.list_events(&EventFilter::default()).len(), 1);
@@ -347,10 +331,7 @@ mod tests {
     fn list_events_limit_returns_tail() {
         let store = EventStore::in_memory();
         for i in 0..5u8 {
-            let trace = format!(
-                "0000000{}-0000-4000-8000-000000000000",
-                i
-            );
+            let trace = format!("0000000{}-0000-4000-8000-000000000000", i);
             store.append(sample_event(&trace, "a", "s")).unwrap();
         }
         let last_two = store.list_events(&EventFilter {
@@ -390,10 +371,7 @@ mod tests {
             .unwrap();
         let sessions = store.list_sessions();
         assert_eq!(sessions.len(), 2);
-        let a_s1 = sessions
-            .iter()
-            .find(|s| s.agent_id == "a")
-            .expect("a/s1");
+        let a_s1 = sessions.iter().find(|s| s.agent_id == "a").expect("a/s1");
         assert_eq!(a_s1.event_count, 2);
     }
 
@@ -461,21 +439,9 @@ mod tests {
         let store = EventStore::in_memory();
         let written = store
             .append_batch(vec![
-                sample_event(
-                    "11111111-1111-4111-8111-111111111111",
-                    "a",
-                    "s",
-                ),
-                sample_event(
-                    "22222222-2222-4222-8222-222222222222",
-                    "a",
-                    "s",
-                ),
-                sample_event(
-                    "11111111-1111-4111-8111-111111111111",
-                    "a",
-                    "s",
-                ), // duplicate
+                sample_event("11111111-1111-4111-8111-111111111111", "a", "s"),
+                sample_event("22222222-2222-4222-8222-222222222222", "a", "s"),
+                sample_event("11111111-1111-4111-8111-111111111111", "a", "s"), // duplicate
             ])
             .unwrap();
         assert_eq!(written, 2);
@@ -484,10 +450,7 @@ mod tests {
 
     fn tempdir() -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!(
-            "trustlayer-events-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        p.push(format!("trustlayer-events-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&p).expect("create tempdir");
         p
     }

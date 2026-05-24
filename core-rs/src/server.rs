@@ -67,7 +67,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/check", post(check_handler))
         .route("/v1/events", post(ingest_handler).get(list_events_handler))
         .route("/v1/sessions", get(list_sessions_handler))
-        .route("/v1/sessions/:agent_id/:session_id", get(get_session_handler))
+        .route(
+            "/v1/sessions/:agent_id/:session_id",
+            get(get_session_handler),
+        )
         .route("/v1/reflections", get(list_reflections_handler))
         .route("/v1/reflections/:name", get(get_reflection_handler))
         .route("/healthz", get(|| async { "ok" }))

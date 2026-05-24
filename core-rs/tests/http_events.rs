@@ -180,9 +180,7 @@ async fn get_session_returns_only_that_sessions_events() {
 async fn check_route_still_works_after_event_routes_added() {
     let state = test_state();
     let app = build_router(state);
-    let body = format!(
-        r#"{{"event": {EVENT_A_S1}, "policy_name": "test"}}"#
-    );
+    let body = format!(r#"{{"event": {EVENT_A_S1}, "policy_name": "test"}}"#);
     let (status, body) = post_json(app, "/v1/check", &body).await;
     assert_eq!(status, StatusCode::OK);
     assert!(body["decision"].is_string());
