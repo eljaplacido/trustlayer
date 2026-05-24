@@ -1,4 +1,5 @@
 import type { AgentTraceEvent } from "./schema.js";
+import { resolveApiToken } from "./auth.js";
 
 export interface TrustLayerClientOptions {
   endpoint?: string;
@@ -19,7 +20,8 @@ export class TrustLayerClient {
 
   constructor(opts: TrustLayerClientOptions = {}) {
     this.endpoint = opts.endpoint ?? DEFAULT_ENDPOINT;
-    this.apiKey = opts.apiKey;
+    // ADR-007: explicit token wins, else fall back to TRUSTLAYER_API_TOKEN.
+    this.apiKey = resolveApiToken(opts.apiKey);
     const f = opts.fetch ?? globalThis.fetch;
     if (!f) {
       throw new Error(

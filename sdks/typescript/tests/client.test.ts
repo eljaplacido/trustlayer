@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TrustLayerClient } from "../src/client.js";
 import { AgentTraceEvent } from "../src/schema.js";
@@ -75,5 +75,47 @@ describe("TrustLayerClient", () => {
     const client = new TrustLayerClient({ fetch: fakeFetch, onError });
     await expect(client.emit(event())).resolves.toBeUndefined();
     expect(onError).toHaveBeenCalledOnce();
+  });
+});
+
+describe("TrustLayerClient bearer-token resolution (ADR-007)", () => {
+  const ORIGINAL = process.env.TRUSTLAYER_API_TOKEN;
+
+  beforeEach(() => {
+    delete process.env.TRUSTLAYER_API_TOKEN;
+  });
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.TRUSTLAYER_API_TOKEN;
+    else process.env.TRUSTLAYER_API_TOKEN = ORIGINAL;
+  });
+
+  async function captureHeaders(opts: {
+    apiKey?: string;
+  }): Promise<Record<string, string>> {
+    let captured: Record<string, string> = {};
+    const fakeFetch = (async (_url: string, init: RequestInit) => {
+      captured = init.headers as Record<string, string>;
+      return new Response(null, { status: 202 });
+    }) as unknown as typeof fetch;
+    const client = new TrustLayerClient({ ...opts, fetch: fakeFetch });
+    await client.emit(event());
+    return captured;
+  }
+
+  it("falls back to TRUSTLAYER_API_TOKEN env var", async () => {
+    process.env.TRUSTLAYER_API_TOKEN = "from-env";
+    const headers = await captureHeaders({});
+    expect(headers["Authorization"]).toBe("Bearer from-env");
+  });
+
+  it("explicit apiKey overrides env var", async () => {
+    process.env.TRUSTLAYER_API_TOKEN = "from-env";
+    const headers = await captureHeaders({ apiKey: "explicit" });
+    expect(headers["Authorization"]).toBe("Bearer explicit");
+  });
+
+  it("omits Authorization header when no token is set", async () => {
+    const headers = await captureHeaders({});
+    expect(headers["Authorization"]).toBeUndefined();
   });
 });

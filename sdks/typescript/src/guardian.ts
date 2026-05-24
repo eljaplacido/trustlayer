@@ -1,4 +1,5 @@
 import type { AgentTraceEvent, PolicyCheckResult } from "./schema.js";
+import { resolveApiToken } from "./auth.js";
 
 export interface Verdict {
   decision: PolicyCheckResult;
@@ -36,7 +37,8 @@ export class GuardianClient {
   constructor(opts: GuardianClientOptions = {}) {
     this.endpoint = opts.endpoint ?? DEFAULT_GUARDIAN_ENDPOINT;
     this.policyName = opts.policyName;
-    this.apiKey = opts.apiKey;
+    // ADR-007: explicit token wins, else fall back to TRUSTLAYER_API_TOKEN.
+    this.apiKey = resolveApiToken(opts.apiKey);
     const f = opts.fetch ?? globalThis.fetch;
     if (!f) {
       throw new Error(

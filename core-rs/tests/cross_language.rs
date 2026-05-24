@@ -80,3 +80,44 @@ fn loads_default_policy_from_repo() {
     assert_eq!(policy.name, "default");
     assert!(!policy.rules.is_empty());
 }
+
+/// ADR-008: Pydantic-emitted payload + Rust-side payload predicate must
+/// agree end-to-end. The Python SDK uses `json.dumps`-equivalent
+/// serialisation, so the wire literals (`"gpt-4"`, `1.0`) must compare
+/// equal to JSON literals in the policy.
+#[test]
+fn guardian_payload_predicate_against_pydantic_event() {
+    const EVENT: &str = r#"{
+        "trace_id": "33333333-3333-4333-8333-333333333333",
+        "agent_id": "researcher-1",
+        "session_id": "S1",
+        "timestamp": "2026-05-24T09:00:00+00:00",
+        "event_type": "LLM_CALL",
+        "cynefin_domain": "COMPLEX",
+        "payload": {"model": "gpt-4", "args": {"temperature": 1.0, "tools": ["shell"]}},
+        "metrics": {}
+    }"#;
+    let event: AgentTraceEvent = serde_json::from_str(EVENT).expect("parse");
+
+    let mut payload = std::collections::BTreeMap::new();
+    payload.insert("model".to_string(), serde_json::json!("gpt-4"));
+    payload.insert("args.temperature".to_string(), serde_json::json!(1.0));
+    payload.insert("args.tools.0".to_string(), serde_json::json!("shell"));
+
+    let policy = Policy {
+        name: "test".into(),
+        rules: vec![PolicyRule {
+            name: "block_gpt4_with_shell".into(),
+            selector: MatchSpec {
+                event_type: Some(EventType::LlmCall),
+                payload: Some(payload),
+                ..Default::default()
+            },
+            decision: Decision::Fail,
+            reason: None,
+        }],
+    };
+    let verdict = CynepicGuardian::new(policy).evaluate(&event);
+    assert_eq!(verdict.decision, Decision::Fail);
+    assert_eq!(verdict.rule.as_deref(), Some("block_gpt4_with_shell"));
+}

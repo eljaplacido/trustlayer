@@ -24,10 +24,33 @@ The authoritative roadmap and per-phase status live in
   `cargo clippy -- -D warnings`, `cargo test --features server`, every
   pytest target (SDK + Hermes + MCP), and the TypeScript layers'
   typecheck + tests on every push and PR.
+- **ADR-007 — bearer-token auth on guardian + trace store.** Optional
+  `TRUSTLAYER_API_TOKEN` env var; when set, every route except
+  `/healthz` requires `Authorization: Bearer <token>` (constant-time
+  compare via `subtle`). Python + TypeScript SDKs gain env fallback;
+  dashboard reads `VITE_TRUSTLAYER_API_TOKEN` at build time.
+- **ADR-009 — policy hot-reload via file watch.** `notify`-based
+  watcher with 200 ms debounce; `arc_swap::ArcSwap<Policy>` for wait-
+  free swap on the hot path; parse failure keeps the live policy in
+  place. Opt-out via `TRUSTLAYER_POLICY_RELOAD=false`.
+
+### Wire format (MINOR — additive, backwards-compatible)
+- **ADR-008 — `MatchSpec` payload predicates.** `MatchSpec` gains an
+  optional `payload: map<dotted-path, json>` field. Each key is a
+  dotted path into `event.payload`; the predicate matches when the
+  resolved value is deep-equal to the JSON literal. Numeric segments
+  index arrays. Missing paths never match. `null` literals match
+  `null` values only — not missing keys. Existing policies parse
+  unchanged.
 
 ### Changed
 - `core-rs/` clippy + fmt warnings are now denied in CI (Phase-4
   follow-up closed).
+- `CynepicGuardian::policy()` now returns `Arc<Policy>` (was `&Policy`)
+  because the policy lives behind `ArcSwap` (ADR-009). Internal API;
+  no wire impact.
+- `core-rs/policies/default.json` — added a
+  `block_gpt4_via_payload_predicate` rule as a worked ADR-008 example.
 
 ---
 

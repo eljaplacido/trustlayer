@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GuardianClient } from "../src/guardian.js";
 import { TrustLayerClient } from "../src/client.js";
@@ -254,5 +254,52 @@ describe("Tracer.check", () => {
 
     await tracer.check("calc", {}, { guardian, policyName: "alt" });
     expect(captured.policy_name).toBe("alt");
+  });
+});
+
+describe("GuardianClient bearer-token resolution (ADR-007)", () => {
+  const ORIGINAL = process.env.TRUSTLAYER_API_TOKEN;
+
+  beforeEach(() => {
+    delete process.env.TRUSTLAYER_API_TOKEN;
+  });
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.TRUSTLAYER_API_TOKEN;
+    else process.env.TRUSTLAYER_API_TOKEN = ORIGINAL;
+  });
+
+  async function captureHeaders(opts: {
+    apiKey?: string;
+  }): Promise<Record<string, string>> {
+    let captured: Record<string, string> = {};
+    const fakeFetch = (async (_url: string, init: RequestInit) => {
+      captured = init.headers as Record<string, string>;
+      return jsonResponse({
+        decision: "PASS",
+        rule: null,
+        reason: null,
+        policy: "p",
+      });
+    }) as unknown as typeof fetch;
+    const guardian = new GuardianClient({ ...opts, fetch: fakeFetch });
+    await guardian.check(event());
+    return captured;
+  }
+
+  it("falls back to TRUSTLAYER_API_TOKEN env var", async () => {
+    process.env.TRUSTLAYER_API_TOKEN = "guard-env";
+    const headers = await captureHeaders({});
+    expect(headers["Authorization"]).toBe("Bearer guard-env");
+  });
+
+  it("explicit apiKey overrides env var", async () => {
+    process.env.TRUSTLAYER_API_TOKEN = "guard-env";
+    const headers = await captureHeaders({ apiKey: "explicit" });
+    expect(headers["Authorization"]).toBe("Bearer explicit");
+  });
+
+  it("omits Authorization header when no token is set", async () => {
+    const headers = await captureHeaders({});
+    expect(headers["Authorization"]).toBeUndefined();
   });
 });

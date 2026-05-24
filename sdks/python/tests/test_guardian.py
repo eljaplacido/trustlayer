@@ -152,3 +152,42 @@ def test_context_manager_closes() -> None:
 
     with GuardianClient(transport=httpx.MockTransport(handler)) as client:
         client.check(_event())
+
+
+def _capture_auth(captured: list[dict], **kwargs: object) -> GuardianClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append({"headers": dict(request.headers)})
+        return httpx.Response(
+            200,
+            json={"decision": "PASS", "rule": None, "reason": None, "policy": "p"},
+        )
+
+    return GuardianClient(transport=httpx.MockTransport(handler), **kwargs)  # type: ignore[arg-type]
+
+
+def test_guardian_token_falls_back_to_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRUSTLAYER_API_TOKEN", "guard-env")
+    captured: list[dict] = []
+    client = _capture_auth(captured)
+    client.check(_event())
+    assert captured[0]["headers"]["authorization"] == "Bearer guard-env"
+
+
+def test_guardian_explicit_token_overrides_env_var(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TRUSTLAYER_API_TOKEN", "guard-env")
+    captured: list[dict] = []
+    client = _capture_auth(captured, api_key="explicit-guard")
+    client.check(_event())
+    assert captured[0]["headers"]["authorization"] == "Bearer explicit-guard"
+
+
+def test_guardian_no_token_means_no_authorization_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TRUSTLAYER_API_TOKEN", raising=False)
+    captured: list[dict] = []
+    client = _capture_auth(captured)
+    client.check(_event())
+    assert "authorization" not in captured[0]["headers"]

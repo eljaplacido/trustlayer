@@ -4,10 +4,17 @@
 //! If no rule matches, the default is `PASS` — unless the event is classified
 //! `CHAOTIC`, in which case the default is `ESCALATE` (per the Cynefin model:
 //! novel/crisis interactions are escalated by default).
+//!
+//! Policy storage lives behind an [`ArcSwap`] (ADR-009) so the watcher in
+//! [`crate::policy_watch`] can replace it atomically without blocking the
+//! `/v1/check` hot path. `Arc<Policy>` clones are cheap reference bumps.
 
+use std::sync::Arc;
+
+use arc_swap::ArcSwap;
 use serde::Serialize;
 
-use crate::policy::{MatchSpec, Policy};
+use crate::policy::{resolve_path, MatchSpec, Policy};
 use crate::schema::{AgentTraceEvent, CynefinDomain, Decision};
 
 /// The guardian's adjudication for one event.
@@ -21,32 +28,45 @@ pub struct Verdict {
     pub policy: String,
 }
 
-/// Stateless evaluator. `Send + Sync` so it can be shared behind an `Arc` in a
-/// hot HTTP path.
-#[derive(Debug, Clone)]
+/// Stateless evaluator with a wait-free policy swap.
+///
+/// `evaluate` does a single relaxed atomic load on the policy pointer per
+/// call (via `ArcSwap`), so concurrent hot-reload via [`replace_policy`] is
+/// safe and uncontended.
+#[derive(Debug)]
 pub struct CynepicGuardian {
-    policy: Policy,
+    policy: ArcSwap<Policy>,
 }
 
 impl CynepicGuardian {
     pub fn new(policy: Policy) -> Self {
-        Self { policy }
+        Self {
+            policy: ArcSwap::from_pointee(policy),
+        }
     }
 
-    /// Return the underlying policy (useful for introspection / hot-reload).
-    pub fn policy(&self) -> &Policy {
-        &self.policy
+    /// Return a snapshot of the active policy. Cheap — bumps a refcount.
+    pub fn policy(&self) -> Arc<Policy> {
+        self.policy.load_full()
+    }
+
+    /// Atomically swap in a new policy (ADR-009). Concurrent `evaluate` calls
+    /// either see the old policy in full or the new one in full — never a torn
+    /// mix.
+    pub fn replace_policy(&self, policy: Policy) {
+        self.policy.store(Arc::new(policy));
     }
 
     /// Adjudicate one event.
     pub fn evaluate(&self, event: &AgentTraceEvent) -> Verdict {
-        for rule in &self.policy.rules {
+        let policy = self.policy.load();
+        for rule in &policy.rules {
             if matches_event(&rule.selector, event) {
                 return Verdict {
                     decision: rule.decision,
                     rule: Some(rule.name.clone()),
                     reason: rule.reason.clone(),
-                    policy: self.policy.name.clone(),
+                    policy: policy.name.clone(),
                 };
             }
         }
@@ -60,7 +80,7 @@ impl CynepicGuardian {
             rule: None,
             reason: chaotic_default
                 .then(|| "CHAOTIC domain - no rule matched; escalating by default".to_string()),
-            policy: self.policy.name.clone(),
+            policy: policy.name.clone(),
         }
     }
 }
@@ -84,6 +104,16 @@ fn matches_event(selector: &MatchSpec, event: &AgentTraceEvent) -> bool {
     if let Some(ref tn) = selector.tool_name {
         if event.tool_name() != Some(tn.as_str()) {
             return false;
+        }
+    }
+    if let Some(ref predicates) = selector.payload {
+        // ADR-008: every dotted path must resolve to a value deep-equal to the
+        // expected JSON literal. Missing paths never match.
+        for (path, expected) in predicates {
+            match resolve_path(&event.payload, path) {
+                Some(actual) if actual == expected => continue,
+                _ => return false,
+            }
         }
     }
     true
@@ -253,6 +283,163 @@ mod tests {
         let v = g.evaluate(&event(EventType::LlmCall, None, CynefinDomain::Complex));
         assert_eq!(v.decision, Decision::Escalate);
         let v = g.evaluate(&event(EventType::LlmCall, None, CynefinDomain::Clear));
+        assert_eq!(v.decision, Decision::Pass);
+    }
+
+    // ─── ADR-008: payload predicates ────────────────────────────────────
+
+    use std::collections::BTreeMap;
+
+    fn rule_with_payload(
+        predicates: &[(&str, serde_json::Value)],
+        decision: Decision,
+    ) -> PolicyRule {
+        let map: BTreeMap<String, serde_json::Value> = predicates
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), v.clone()))
+            .collect();
+        PolicyRule {
+            name: "payload-rule".into(),
+            selector: MatchSpec {
+                payload: Some(map),
+                ..Default::default()
+            },
+            decision,
+            reason: None,
+        }
+    }
+
+    fn event_with_payload(value: serde_json::Value) -> AgentTraceEvent {
+        let serde_json::Value::Object(map) = value else {
+            panic!("expected object");
+        };
+        AgentTraceEvent {
+            trace_id: Uuid::nil(),
+            agent_id: "a".to_string(),
+            session_id: "s".to_string(),
+            timestamp: Utc::now(),
+            event_type: EventType::ToolCall,
+            cynefin_domain: CynefinDomain::Clear,
+            payload: map,
+            metrics: Default::default(),
+        }
+    }
+
+    #[test]
+    fn payload_predicate_matches_flat_string() {
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[("model", serde_json::json!("gpt-4"))],
+            Decision::Fail,
+        )]));
+        let v = g.evaluate(&event_with_payload(serde_json::json!({"model": "gpt-4"})));
+        assert_eq!(v.decision, Decision::Fail);
+    }
+
+    #[test]
+    fn payload_predicate_string_value_mismatch_does_not_match() {
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[("model", serde_json::json!("gpt-4"))],
+            Decision::Fail,
+        )]));
+        let v = g.evaluate(&event_with_payload(
+            serde_json::json!({"model": "claude-opus"}),
+        ));
+        assert_eq!(v.decision, Decision::Pass);
+    }
+
+    #[test]
+    fn payload_predicate_walks_dotted_path() {
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[("args.temperature", serde_json::json!(1.0))],
+            Decision::Escalate,
+        )]));
+        let v = g.evaluate(&event_with_payload(
+            serde_json::json!({"args": {"temperature": 1.0}}),
+        ));
+        assert_eq!(v.decision, Decision::Escalate);
+    }
+
+    #[test]
+    fn payload_predicate_indexes_arrays() {
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[("args.tools.0", serde_json::json!("shell"))],
+            Decision::Fail,
+        )]));
+        let v = g.evaluate(&event_with_payload(
+            serde_json::json!({"args": {"tools": ["shell", "browser"]}}),
+        ));
+        assert_eq!(v.decision, Decision::Fail);
+    }
+
+    #[test]
+    fn payload_predicate_missing_path_does_not_match() {
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[("model", serde_json::json!("gpt-4"))],
+            Decision::Fail,
+        )]));
+        let v = g.evaluate(&event_with_payload(
+            serde_json::json!({"tool_name": "calc"}),
+        ));
+        assert_eq!(v.decision, Decision::Pass);
+    }
+
+    #[test]
+    fn payload_predicate_anding_requires_all_paths() {
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[
+                ("model", serde_json::json!("gpt-4")),
+                ("args.temperature", serde_json::json!(1.0)),
+            ],
+            Decision::Fail,
+        )]));
+        // both match -> fires
+        let v = g.evaluate(&event_with_payload(serde_json::json!({
+            "model": "gpt-4",
+            "args": {"temperature": 1.0}
+        })));
+        assert_eq!(v.decision, Decision::Fail);
+        // only one matches -> doesn't fire
+        let v = g.evaluate(&event_with_payload(serde_json::json!({
+            "model": "gpt-4",
+            "args": {"temperature": 0.0}
+        })));
+        assert_eq!(v.decision, Decision::Pass);
+    }
+
+    #[test]
+    fn payload_predicate_null_vs_absent_distinction() {
+        // Expecting `null` should match an explicit null, not a missing key.
+        let g = CynepicGuardian::new(policy(vec![rule_with_payload(
+            &[("reason", serde_json::Value::Null)],
+            Decision::Fail,
+        )]));
+        let v = g.evaluate(&event_with_payload(serde_json::json!({"reason": null})));
+        assert_eq!(v.decision, Decision::Fail);
+        let v = g.evaluate(&event_with_payload(serde_json::json!({})));
+        assert_eq!(v.decision, Decision::Pass);
+    }
+
+    #[test]
+    fn payload_predicate_ands_with_event_type() {
+        let g = CynepicGuardian::new(policy(vec![PolicyRule {
+            name: "tool-call-with-gpt4".into(),
+            selector: MatchSpec {
+                event_type: Some(EventType::ToolCall),
+                payload: Some(BTreeMap::from([(
+                    "model".to_string(),
+                    serde_json::json!("gpt-4"),
+                )])),
+                ..Default::default()
+            },
+            decision: Decision::Fail,
+            reason: None,
+        }]));
+        let v = g.evaluate(&event_with_payload(serde_json::json!({"model": "gpt-4"})));
+        assert_eq!(v.decision, Decision::Fail);
+        // Wrong event_type — payload matches, but the AND with event_type fails.
+        let mut evt = event_with_payload(serde_json::json!({"model": "gpt-4"}));
+        evt.event_type = EventType::AgentStart;
+        let v = g.evaluate(&evt);
         assert_eq!(v.decision, Decision::Pass);
     }
 }

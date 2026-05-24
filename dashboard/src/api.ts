@@ -18,6 +18,22 @@ function baseUrl(): string {
   return fromEnv ?? DEFAULT_BASE;
 }
 
+/**
+ * ADR-007: bearer token sourced from VITE_TRUSTLAYER_API_TOKEN at build
+ * time. Returns undefined when unset so we don't send an empty header.
+ */
+function apiToken(): string | undefined {
+  const raw = import.meta.env.VITE_TRUSTLAYER_API_TOKEN as
+    | string
+    | undefined;
+  return raw && raw.length > 0 ? raw : undefined;
+}
+
+function authHeaders(): Record<string, string> | undefined {
+  const token = apiToken();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
 export interface SessionSummary {
   agent_id: string;
   session_id: string;
@@ -87,7 +103,7 @@ export async function fetchReflection(
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { signal });
+  const res = await fetch(url, { signal, headers: authHeaders() });
   if (!res.ok) {
     throw new Error(`GET ${url} -> HTTP ${res.status}`);
   }

@@ -9,12 +9,14 @@ use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
+use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
+use crate::auth::require_token;
 use crate::events::{EventFilter, EventStore};
 use crate::guardian::{CynepicGuardian, Verdict};
 use crate::reflections;
@@ -26,6 +28,9 @@ pub struct AppState {
     pub events: Arc<EventStore>,
     /// Obsidian vault root — reflection notes live under `05_Reflections/`.
     pub vault_path: Arc<PathBuf>,
+    /// Optional shared bearer token (ADR-007). `None` = open; `Some(_)` =
+    /// every route except `/healthz` requires `Authorization: Bearer ...`.
+    pub api_token: Option<Arc<String>>,
 }
 
 #[derive(Deserialize)]
@@ -58,12 +63,16 @@ struct IngestResponse {
 }
 
 /// Build the Axum router used by both the binary and the integration tests.
+///
+/// `/healthz` is mounted **outside** the auth middleware so liveness probes
+/// work even with `TRUSTLAYER_API_TOKEN` set (ADR-007).
 pub fn build_router(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
-    Router::new()
+
+    let protected = Router::new()
         .route("/v1/check", post(check_handler))
         .route("/v1/events", post(ingest_handler).get(list_events_handler))
         .route("/v1/sessions", get(list_sessions_handler))
@@ -73,6 +82,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/v1/reflections", get(list_reflections_handler))
         .route("/v1/reflections/:name", get(get_reflection_handler))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_token));
+
+    Router::new()
+        .merge(protected)
         .route("/healthz", get(|| async { "ok" }))
         .layer(cors)
         .with_state(state)

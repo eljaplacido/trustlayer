@@ -50,6 +50,16 @@ fn state_with_vault(vault: PathBuf) -> AppState {
         guardian: Arc::new(CynepicGuardian::new(Policy::empty("test"))),
         events: Arc::new(EventStore::in_memory()),
         vault_path: Arc::new(vault),
+        api_token: None,
+    }
+}
+
+fn state_with_token(token: &str) -> AppState {
+    AppState {
+        guardian: Arc::new(CynepicGuardian::new(Policy::empty("test"))),
+        events: Arc::new(EventStore::in_memory()),
+        vault_path: Arc::new(std::env::temp_dir()),
+        api_token: Some(Arc::new(token.to_string())),
     }
 }
 
@@ -261,4 +271,92 @@ async fn list_reflections_empty_vault_returns_empty_array() {
     let (status, body) = get_json(app, "/v1/reflections").await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.as_array().unwrap().is_empty());
+}
+
+// ─── ADR-007: bearer-token auth ────────────────────────────────────────────
+
+async fn get_with_auth(app: axum::Router, uri: &str, token: Option<&str>) -> (StatusCode, Value) {
+    let mut req = Request::builder().method("GET").uri(uri);
+    if let Some(t) = token {
+        req = req.header("authorization", format!("Bearer {t}"));
+    }
+    let res = app.oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+    let status = res.status();
+    let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    let value: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    (status, value)
+}
+
+#[tokio::test]
+async fn auth_disabled_allows_unauthenticated_requests() {
+    let app = build_router(test_state());
+    let (status, _) = get_with_auth(app, "/v1/events", None).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn auth_enabled_accepts_correct_token() {
+    let app = build_router(state_with_token("sekret"));
+    let (status, _) = get_with_auth(app, "/v1/events", Some("sekret")).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn auth_enabled_rejects_missing_token() {
+    let app = build_router(state_with_token("sekret"));
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/events")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    let challenge = res.headers().get("www-authenticate").expect("challenge");
+    assert!(challenge.to_str().unwrap().starts_with("Bearer "));
+}
+
+#[tokio::test]
+async fn auth_enabled_rejects_wrong_token() {
+    let app = build_router(state_with_token("sekret"));
+    let (status, _) = get_with_auth(app, "/v1/events", Some("nope")).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn auth_enabled_rejects_malformed_authorization_header() {
+    let app = build_router(state_with_token("sekret"));
+    let req = Request::builder()
+        .method("GET")
+        .uri("/v1/events")
+        .header("authorization", "Token sekret") // wrong scheme
+        .body(Body::empty())
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn healthz_is_always_unauthenticated() {
+    let app = build_router(state_with_token("sekret"));
+    let req = Request::builder()
+        .method("GET")
+        .uri("/healthz")
+        .body(Body::empty())
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn auth_gates_post_events_too() {
+    let state = state_with_token("sekret");
+    let app = build_router(state);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/events")
+        .header("content-type", "application/json")
+        .body(Body::from(EVENT_A_S1.to_string()))
+        .unwrap();
+    let res = app.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }

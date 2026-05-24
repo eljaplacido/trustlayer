@@ -6,10 +6,14 @@
 //!
 //! No `unwrap()`s on production paths — see `CLAUDE.md`.
 
+#[cfg(feature = "server")]
+pub mod auth;
 pub mod error;
 pub mod events;
 pub mod guardian;
 pub mod policy;
+#[cfg(feature = "server")]
+pub mod policy_watch;
 pub mod reflections;
 pub mod schema;
 #[cfg(feature = "server")]

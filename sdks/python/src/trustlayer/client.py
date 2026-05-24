@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterable
 from types import TracebackType
 from typing import Self
@@ -14,6 +15,7 @@ from .schema import AgentTraceEvent
 logger = logging.getLogger("trustlayer")
 
 DEFAULT_ENDPOINT = "http://localhost:8080/v1/events"
+API_TOKEN_ENV_VAR = "TRUSTLAYER_API_TOKEN"
 
 
 class TrustLayerClient:
@@ -22,6 +24,12 @@ class TrustLayerClient:
     Failures are logged at WARNING and swallowed: instrumentation must never
     take down the host agent. Pass a custom ``transport`` (e.g.
     ``httpx.MockTransport``) for tests.
+
+    The bearer token (ADR-007) resolves in this order:
+
+    1. ``api_key`` argument (explicit wins).
+    2. ``TRUSTLAYER_API_TOKEN`` environment variable.
+    3. None — no Authorization header sent.
     """
 
     def __init__(
@@ -32,7 +40,7 @@ class TrustLayerClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.endpoint = endpoint
-        self.api_key = api_key
+        self.api_key = api_key if api_key is not None else os.environ.get(API_TOKEN_ENV_VAR) or None
         self._client = httpx.Client(
             timeout=timeout,
             transport=transport,

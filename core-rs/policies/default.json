@@ -11,6 +11,15 @@
       "reason": "External LLM is disabled in this policy. Use the in-house model."
     },
     {
+      "name": "block_gpt4_via_payload_predicate",
+      "match": {
+        "event_type": "LLM_CALL",
+        "payload": { "model": "gpt-4" }
+      },
+      "decision": "FAIL",
+      "reason": "GPT-4 calls require explicit allow-list (ADR-008 payload predicate example)."
+    },
+    {
       "name": "escalate_complex_human_calls",
       "match": {
         "event_type": "TOOL_CALL",

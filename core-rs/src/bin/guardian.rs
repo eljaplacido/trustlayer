@@ -33,6 +33,7 @@ use tokio::net::TcpListener;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
+use trustlayer_core::policy_watch::spawn_watcher;
 use trustlayer_core::{build_router, AppState, CynepicGuardian, EventStore, Policy};
 
 #[tokio::main]
@@ -79,10 +80,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| PathBuf::from("obsidian_vault"));
     info!("Reflection vault: {}", vault_path.display());
 
+    let api_token = match std::env::var("TRUSTLAYER_API_TOKEN") {
+        Ok(s) if !s.is_empty() => {
+            info!("Auth: bearer-token required (TRUSTLAYER_API_TOKEN set)");
+            Some(Arc::new(s))
+        }
+        _ => {
+            warn!("Auth: open — TRUSTLAYER_API_TOKEN not set. Loopback only.");
+            None
+        }
+    };
+
+    let guardian = Arc::new(CynepicGuardian::new(policy));
+
+    // ADR-009: policy hot-reload (opt-out via TRUSTLAYER_POLICY_RELOAD=false).
+    let reload_enabled = std::env::var("TRUSTLAYER_POLICY_RELOAD")
+        .map(|v| !v.eq_ignore_ascii_case("false"))
+        .unwrap_or(true);
+    if reload_enabled {
+        let _watcher = spawn_watcher(policy_path.clone(), guardian.clone());
+        // Handle deliberately dropped — the task lives until the process
+        // exits or the runtime shuts down.
+    } else {
+        info!("policy hot-reload disabled (TRUSTLAYER_POLICY_RELOAD=false)");
+    }
+
     let state = AppState {
-        guardian: Arc::new(CynepicGuardian::new(policy)),
+        guardian,
         events: Arc::new(events_store),
         vault_path: Arc::new(vault_path),
+        api_token,
     };
 
     let app = build_router(state);

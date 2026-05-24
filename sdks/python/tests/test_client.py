@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 
 from trustlayer import AgentTraceEvent, EventType, TrustLayerClient
 
@@ -65,3 +66,45 @@ def test_context_manager_closes() -> None:
                 agent_id="a", session_id="s", event_type=EventType.AGENT_START
             )
         )
+
+
+def _make_token_capture_client(
+    captured: list[dict], **kwargs: object
+) -> TrustLayerClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append({"headers": dict(request.headers)})
+        return httpx.Response(202)
+
+    return TrustLayerClient(transport=httpx.MockTransport(handler), **kwargs)  # type: ignore[arg-type]
+
+
+def test_token_falls_back_to_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRUSTLAYER_API_TOKEN", "from-env")
+    captured: list[dict] = []
+    client = _make_token_capture_client(captured)
+    client.emit(
+        AgentTraceEvent(agent_id="a", session_id="s", event_type=EventType.AGENT_START)
+    )
+    assert captured[0]["headers"]["authorization"] == "Bearer from-env"
+
+
+def test_explicit_token_overrides_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRUSTLAYER_API_TOKEN", "from-env")
+    captured: list[dict] = []
+    client = _make_token_capture_client(captured, api_key="explicit")
+    client.emit(
+        AgentTraceEvent(agent_id="a", session_id="s", event_type=EventType.AGENT_START)
+    )
+    assert captured[0]["headers"]["authorization"] == "Bearer explicit"
+
+
+def test_no_token_means_no_authorization_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TRUSTLAYER_API_TOKEN", raising=False)
+    captured: list[dict] = []
+    client = _make_token_capture_client(captured)
+    client.emit(
+        AgentTraceEvent(agent_id="a", session_id="s", event_type=EventType.AGENT_START)
+    )
+    assert "authorization" not in captured[0]["headers"]

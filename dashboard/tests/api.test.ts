@@ -25,8 +25,24 @@ function stubFetch(body: unknown, ok = true, status = 200) {
   return calls;
 }
 
+/** Capture full RequestInit (URL + init) per call. */
+function stubFetchWithInit(body: unknown, ok = true, status = 200) {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const fake = vi.fn(async (url: string | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return {
+      ok,
+      status,
+      json: async () => body,
+    } as Response;
+  });
+  vi.stubGlobal("fetch", fake);
+  return calls;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("fetchEvents", () => {
@@ -119,5 +135,36 @@ describe("fetchReflection", () => {
     await expect(
       fetchReflection("reflection-2099-01-01.md"),
     ).rejects.toThrow("HTTP 404");
+  });
+});
+
+describe("bearer-token resolution (ADR-007)", () => {
+  it("omits the Authorization header when VITE_TRUSTLAYER_API_TOKEN is unset", async () => {
+    vi.stubEnv("VITE_TRUSTLAYER_API_TOKEN", "");
+    const calls = stubFetchWithInit([]);
+    await fetchEvents();
+    const headers = (calls[0]!.init?.headers ?? undefined) as
+      | Record<string, string>
+      | undefined;
+    expect(headers?.Authorization).toBeUndefined();
+  });
+
+  it("sends Authorization: Bearer when VITE_TRUSTLAYER_API_TOKEN is set", async () => {
+    vi.stubEnv("VITE_TRUSTLAYER_API_TOKEN", "dash-secret");
+    const calls = stubFetchWithInit([]);
+    await fetchEvents();
+    const headers = calls[0]!.init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer dash-secret");
+  });
+
+  it("applies the header to every wrapper (sessions, reflections)", async () => {
+    vi.stubEnv("VITE_TRUSTLAYER_API_TOKEN", "dash-secret");
+    const calls = stubFetchWithInit([]);
+    await fetchSessions();
+    await fetchReflections();
+    for (const call of calls) {
+      const headers = call.init?.headers as Record<string, string>;
+      expect(headers.Authorization).toBe("Bearer dash-secret");
+    }
   });
 });

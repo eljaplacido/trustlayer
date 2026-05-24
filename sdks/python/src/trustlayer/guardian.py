@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from types import TracebackType
 from typing import Literal, Self, TypedDict
 
@@ -25,6 +26,7 @@ from .schema import AgentTraceEvent, PolicyCheckResult
 logger = logging.getLogger("trustlayer.guardian")
 
 DEFAULT_GUARDIAN_ENDPOINT = "http://127.0.0.1:8089/v1/check"
+API_TOKEN_ENV_VAR = "TRUSTLAYER_API_TOKEN"
 
 
 class Verdict(TypedDict):
@@ -40,6 +42,12 @@ class GuardianClient:
     On transport or HTTP failure, returns a synthetic ``"policy": "fallback"``
     verdict whose ``decision`` is ``PASS`` (fail-open) or ``FAIL``
     (fail-closed) depending on ``fail_open``.
+
+    The bearer token (ADR-007) resolves in this order:
+
+    1. ``api_key`` argument (explicit wins).
+    2. ``TRUSTLAYER_API_TOKEN`` environment variable.
+    3. None — no Authorization header sent.
     """
 
     def __init__(
@@ -55,10 +63,11 @@ class GuardianClient:
         self.endpoint = endpoint
         self.policy_name = policy_name
         self.fail_open = fail_open
+        resolved = api_key if api_key is not None else os.environ.get(API_TOKEN_ENV_VAR) or None
         self._client = httpx.Client(
             timeout=timeout,
             transport=transport,
-            headers=self._build_headers(api_key),
+            headers=self._build_headers(resolved),
         )
 
     @staticmethod

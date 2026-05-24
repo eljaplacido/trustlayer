@@ -1,5 +1,9 @@
 # TrustLayer Event Schema
 
+**`SCHEMA_VERSION = 0.2`** — see `docs/VERSIONING.md`. `0.2` is the
+first version that documents the `MatchSpec.payload` predicate field
+(ADR-008); the wire envelope itself is unchanged from `0.1`.
+
 TrustLayer uses an OpenTelemetry-inspired schema for tracking agentic
 execution. **This document is the contract.** Both SDKs serialise to
 the same shape, and the Rust core (Phase 4) plus Hermes (Phase 3) consume
@@ -88,6 +92,62 @@ The envelope for every event emitted by an agent.
 ### `AGENT_START` / `AGENT_END` / `HUMAN_ESCALATION`
 Free-form payload. Common keys: `goal`, `status`, `reason`. Emitters
 choose what to capture.
+
+## Policy / `MatchSpec`
+
+Policies (`core-rs/policies/*.json`) are an ordered list of rules. Each
+rule has a `MatchSpec` selector and a `decision`. The selector predicates
+AND together; an unset field matches any value. The first matching rule
+wins.
+
+```json
+{
+  "name": "default",
+  "rules": [
+    {
+      "name": "block_gpt4_external",
+      "match": {
+        "event_type": "TOOL_CALL",
+        "tool_name": "external_llm",
+        "agent_id": "researcher-1",
+        "cynefin_domain": "COMPLEX",
+        "payload": {
+          "model": "gpt-4",
+          "args.temperature": 1.0,
+          "args.tools.0": "shell"
+        }
+      },
+      "decision": "FAIL",
+      "reason": "GPT-4 + shell tool from researcher in COMPLEX domain"
+    }
+  ]
+}
+```
+
+### `MatchSpec` fields
+
+| Field | Type | Matches when… |
+|---|---|---|
+| `event_type` | `EventType` enum | the event's `event_type` equals this. |
+| `tool_name` | string | the event's `payload.tool_name` equals this. Syntactic sugar for `payload: { "tool_name": "..." }`; kept for back-compat. |
+| `agent_id` | string | the event's `agent_id` equals this. |
+| `cynefin_domain` | `CynefinDomain` enum | the event's `cynefin_domain` equals this. |
+| `payload` | `map<dotted-path, json>` | **every** dotted path in the map resolves to a value deep-equal to its JSON literal (ADR-008). |
+
+### `payload` predicate semantics (ADR-008)
+
+- Keys are dotted paths into `event.payload`. `"model"` ↦ `payload.model`;
+  `"args.temperature"` ↦ `payload.args.temperature`;
+  `"args.tools.0"` ↦ first element of `payload.args.tools` (numeric
+  segments index arrays).
+- Values are arbitrary JSON literals. Equality is **deep**: `"args":
+  {"temperature": 1.0}` matches the whole nested object.
+- Predicates AND together. A path that doesn't resolve (missing key,
+  walking through a scalar, out-of-range index) **does not match**.
+- `null` literals match `null` values only — not missing keys. There is
+  no "absent equals null" coercion and no operators (`>`, regex, etc.).
+- No type coercion: `1` does not match `1.0`, `"true"` does not match
+  `true`. Match against the literal you mean.
 
 ## Guardian Verdict (response from `cynepic-guardian`)
 
