@@ -169,6 +169,29 @@ The dashboard has four live panes — Traces, Sessions, Reflections,
 Policy — polling the sidecar's trace-store API. Point it elsewhere with
 `VITE_TRUSTLAYER_BASE_URL`.
 
+### Bridge to OpenTelemetry
+
+```bash
+pip install -e sdks/python[otel]
+```
+
+```python
+from opentelemetry import trace as otel_trace
+from trustlayer.otel import OTelExporter
+
+# Caller wires up TracerProvider + their exporter of choice
+# (OTLP, Jaeger, Zipkin, Console, ...) as usual.
+exporter = OTelExporter(tracer=otel_trace.get_tracer("my-agent"))
+
+exporter.emit(event)            # one OTel span per AgentTraceEvent
+exporter.emit_batch([e1, e2])   # one per event, in order
+```
+
+The exporter is a method-for-method drop-in for
+`TrustLayerClient.emit` / `emit_batch`. See
+[ADR-012](./obsidian_vault/01_Architecture/ADR-012-OpenTelemetry-Exporter.md)
+for the attribute-naming convention.
+
 ### Drive TrustLayer from an MCP client
 
 ```bash

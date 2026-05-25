@@ -101,6 +101,11 @@ pip install -e .[dev]
 pytest
 ```
 
+The `[dev]` extra pulls in `pytest`, `mypy`, `ruff`, plus the OTel SDK
+that the `trustlayer.otel` exporter tests exercise (ADR-012). End
+users who only want the bridge install the public extra:
+`pip install trustlayer-sdk[otel]`.
+
 ### Hermes (`skills/hermes/`)
 ```bash
 cd skills/hermes

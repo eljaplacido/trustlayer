@@ -202,3 +202,22 @@ Implementations MAY enable permissive CORS so that browser-based
 dashboards can read the trace store from a different origin. The
 reference Rust sidecar does so. Permissive CORS is **not** required
 for conformance.
+
+## 5.11 OpenTelemetry interop (informative)
+
+Implementations MAY bridge `AgentTraceEvent`s into an OpenTelemetry
+pipeline. The reference Python SDK ships such a bridge (ADR-012)
+that maps each event to one OTel span using the caller's
+`TracerProvider`. The attribute naming convention is:
+
+- `trustlayer.trace_id`, `trustlayer.agent_id`, `trustlayer.session_id`,
+  `trustlayer.event_type`, `trustlayer.cynefin_domain` for the
+  envelope.
+- `trustlayer.payload.<dotted-path>` for payload fields (same dotted-
+  path convention as §4.3 payload predicates).
+- `trustlayer.metrics.<key>` for metrics fields.
+
+Cross-language ports of the same bridge are encouraged to use the
+same prefixes so dashboards stay portable across SDKs. Bridges are
+**not** part of conformance — an implementation may ship one or not.
+

@@ -69,6 +69,13 @@ The authoritative roadmap and per-phase status live in
   core's cross-language test loads it and asserts wire-format
   parity.
 - **CI matrix** gains a Go job (Go 1.22 + 1.23).
+- **OpenTelemetry exporter** for the Python SDK (`trustlayer.otel`).
+  New `OTelExporter` maps each `AgentTraceEvent` to one OTel span
+  through the caller's `TracerProvider`; OTel deps are an optional
+  `otel` extra (`pip install trustlayer-sdk[otel]`). Attribute naming
+  (`trustlayer.<envelope-field>`, `trustlayer.payload.<dotted-path>`,
+  `trustlayer.metrics.<key>`) is documented as informative interop
+  in `spec/v0.1/05-http-api.md §5.11`. ADR-012 records the design.
 
 ### Wire format (MINOR — additive, backwards-compatible)
 - **ADR-008 — `MatchSpec` payload predicates.** `MatchSpec` gains an
