@@ -33,6 +33,23 @@ The authoritative roadmap and per-phase status live in
   watcher with 200 ms debounce; `arc_swap::ArcSwap<Policy>` for wait-
   free swap on the hot path; parse failure keeps the live policy in
   place. Opt-out via `TRUSTLAYER_POLICY_RELOAD=false`.
+- **Sidecar `/metrics` endpoint (Prometheus text format).** Four
+  series: `trustlayer_requests_total{route,status}` (request count
+  with matched-template route labels — bounded cardinality),
+  `trustlayer_check_total{decision}` (PASS/FAIL/ESCALATE pre-touched
+  at zero), `trustlayer_events_ingested_total`, and
+  `trustlayer_check_duration_seconds` histogram. Mounted outside the
+  auth layer, same as `/healthz`.
+- **Ingest rate limit on `POST /v1/events`.** In-house per-second
+  token bucket; `TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC` configures it
+  (unset = unlimited). 429 with `Retry-After: 1` on overflow; scoped
+  only to POST.
+- **MCP HTTP/SSE transport** selectable via `TRUSTLAYER_MCP_TRANSPORT`
+  (default `stdio`); SSE binds to `TRUSTLAYER_MCP_BIND` (default
+  `127.0.0.1:8090`). Unknown values fall back to stdio.
+- **Dashboard component tests** (React Testing Library + jsdom) for
+  all four panes (Traces, Sessions, Reflections, Policy) covering
+  loading / error / empty / loaded states and drill-down clicks.
 
 ### Wire format (MINOR — additive, backwards-compatible)
 - **ADR-008 — `MatchSpec` payload predicates.** `MatchSpec` gains an
