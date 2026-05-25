@@ -1,5 +1,10 @@
 //! Verify the Rust schema parses JSON emitted by the Python SDK and that
 //! the guardian returns a decision the Python client can deserialize.
+//!
+//! Slice 4b extends this to the Go SDK: the conformance fixture at
+//! `spec/v0.1/fixtures/event-canonical-go.json` is loaded and asserted
+//! to round-trip through the Rust envelope without losses, proving
+//! wire-format parity end-to-end.
 
 use trustlayer_core::{
     AgentTraceEvent, CynefinDomain, CynepicGuardian, Decision, EventType, MatchSpec, Policy,
@@ -120,4 +125,35 @@ fn guardian_payload_predicate_against_pydantic_event() {
     let verdict = CynepicGuardian::new(policy).evaluate(&event);
     assert_eq!(verdict.decision, Decision::Fail);
     assert_eq!(verdict.rule.as_deref(), Some("block_gpt4_with_shell"));
+}
+
+/// ADR-011 wire-format parity: the canonical fixture produced by the
+/// Go SDK MUST parse through the same Rust envelope as Python and
+/// TypeScript. We load `spec/v0.1/fixtures/event-canonical-go.json` —
+/// committed alongside the Go SDK and reproducible via
+/// `cd sdks/go && go run ./examples/conformance`.
+#[test]
+fn parses_go_emitted_conformance_fixture() {
+    // The test runs with the working directory set to `core-rs/`, so
+    // step up two levels to find the spec fixture.
+    let path = "../spec/v0.1/fixtures/event-canonical-go.json";
+    let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("read fixture at {path}: {e}"));
+    let event: AgentTraceEvent = serde_json::from_slice(&bytes).expect("parse Go-emitted fixture");
+
+    assert_eq!(event.agent_id, "researcher-1");
+    assert_eq!(event.session_id, "S1");
+    assert_eq!(event.event_type, EventType::ToolCall);
+    assert_eq!(event.cynefin_domain, CynefinDomain::Complex);
+    assert_eq!(event.tool_name(), Some("external_llm"));
+    assert_eq!(event.metrics.latency_ms, Some(12.5));
+    assert_eq!(event.metrics.cost_usd, Some(0.0015));
+    assert_eq!(event.metrics.tokens_prompt, Some(150));
+    assert_eq!(event.metrics.tokens_completion, Some(45));
+
+    // The payload's `model` field is the one ADR-008 payload predicates
+    // can match against; verify it survived the Go → Rust hop.
+    assert_eq!(
+        event.payload.get("model").and_then(|v| v.as_str()),
+        Some("gpt-4")
+    );
 }

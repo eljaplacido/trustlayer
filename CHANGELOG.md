@@ -56,6 +56,19 @@ The authoritative roadmap and per-phase status live in
   conformance) plus a versioned index. The spec is the citable
   source of truth; `docs/SCHEMA.md` becomes the implementation
   mirror. ADR-010 records the layout.
+- **Go SDK** at `sdks/go/trustlayer`. First-party reference
+  implementation claiming v0.1 wire-format conformance (§6.2 W1–W7).
+  `TrustLayerClient`, `GuardianClient`, `Tracer` mirror the Python /
+  TypeScript contract; `Tracer.Check` emits TOOL_CALL + POLICY_CHECK
+  with a shared `trace_id`; bearer-token env fallback parity with
+  the other SDKs. stdlib + `github.com/google/uuid` only. ADR-011
+  records the design.
+- **Conformance fixture directory** `spec/v0.1/fixtures/` (ADR-010
+  follow-up). First entry: `event-canonical-go.json`, byte-stable
+  output of `cd sdks/go && go run ./examples/conformance`. The Rust
+  core's cross-language test loads it and asserts wire-format
+  parity.
+- **CI matrix** gains a Go job (Go 1.22 + 1.23).
 
 ### Wire format (MINOR — additive, backwards-compatible)
 - **ADR-008 — `MatchSpec` payload predicates.** `MatchSpec` gains an

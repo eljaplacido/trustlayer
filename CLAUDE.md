@@ -17,6 +17,8 @@ systems. It intercepts tool calls, evaluates policies (Rust core, Phase
   shipped.**
 - `sdks/typescript/` — TypeScript SDK for instrumenting JS agents.
   **Phase 2, shipped.**
+- `sdks/go/` — Go SDK for instrumenting Go agents. Claims wire-format
+  conformance (spec §6.2). **Phase 6 Slice 4b, shipped.**
 - `skills/hermes/` — recursive memory subagent. **Phase 3, shipped.**
 - `mcp-server/` — Python MCP server (FastMCP stdio) bridging SDK +
   Guardian + Hermes to MCP-aware clients. **Phase 5, shipped.**
@@ -45,6 +47,9 @@ systems. It intercepts tool calls, evaluates policies (Rust core, Phase
   module.
 - **TypeScript** — strict mode, `noUncheckedIndexedAccess`. Export
   interfaces clearly.
+- **Go** — `go vet ./...` clean. stdlib + `google/uuid` only. Schema
+  parsers use `json.Decoder.DisallowUnknownFields()` semantics
+  (W1 conformance). All public APIs take `context.Context` first.
 
 ## Build & test
 ```bash
@@ -56,6 +61,9 @@ cd skills/hermes && pytest
 
 # TypeScript SDK
 cd sdks/typescript && npm install && npm run typecheck && npm test
+
+# Go SDK
+cd sdks/go && go vet ./... && go test ./...
 
 # Rust core
 cd core-rs && cargo test --features server

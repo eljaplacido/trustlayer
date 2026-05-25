@@ -80,6 +80,30 @@ const answer = await tracer.toolCall(
 await tracer.policyCheck("pii_redaction", "send_to_llm", "PASS");
 ```
 
+### Instrument an agent (Go)
+
+```bash
+cd sdks/go && go test ./...
+```
+
+```go
+import "github.com/eljaplacido/trustlayer/sdks/go/trustlayer"
+
+client, _   := trustlayer.NewClient(trustlayer.ClientOptions{})
+guardian, _ := trustlayer.NewGuardian(trustlayer.GuardianOptions{PolicyName: "default"})
+tracer      := trustlayer.NewTracer(client, "researcher-1", "S1")
+
+verdict, _ := tracer.Check(ctx, "external_llm",
+    map[string]any{"prompt": "hi"},
+    &trustlayer.TracerCheck{Guardian: guardian, PolicyName: "default"},
+)
+// inspect verdict.Decision (PASS / FAIL / ESCALATE) and decide.
+```
+
+See [`sdks/go/examples/end_to_end_demo`](./sdks/go/examples/end_to_end_demo/main.go)
+for a full PASS / FAIL / ESCALATE walk-through against in-process
+fake servers, and ADR-011 in the architecture vault for the design.
+
 ### Gate tool calls with the cynepic-guardian
 
 ```bash
@@ -165,7 +189,8 @@ trustlayer/
 ├── core-rs/                 Rust core + trace-store sidecar (Phase 4–5)
 ├── sdks/
 │   ├── python/              trustlayer-sdk
-│   └── typescript/          @trustlayer/sdk
+│   ├── typescript/          @trustlayer/sdk
+│   └── go/                  trustlayer (Go SDK; Phase 6 Slice 4b)
 ├── skills/
 │   └── hermes/              memory subagent (CLI + library)
 ├── mcp-server/              MCP bridge to SDK + guardian + Hermes (Phase 5)

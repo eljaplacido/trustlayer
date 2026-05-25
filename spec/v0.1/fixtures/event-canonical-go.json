@@ -1,0 +1,21 @@
+{
+  "trace_id": "33333333-3333-4333-8333-333333333333",
+  "agent_id": "researcher-1",
+  "session_id": "S1",
+  "timestamp": "2026-05-25T09:00:00Z",
+  "event_type": "TOOL_CALL",
+  "cynefin_domain": "COMPLEX",
+  "payload": {
+    "model": "gpt-4",
+    "tool_args": {
+      "prompt": "hi"
+    },
+    "tool_name": "external_llm"
+  },
+  "metrics": {
+    "cost_usd": 0.0015,
+    "latency_ms": 12.5,
+    "tokens_completion": 45,
+    "tokens_prompt": 150
+  }
+}
