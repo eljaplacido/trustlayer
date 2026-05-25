@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -19,6 +19,8 @@ use tower_http::cors::{Any, CorsLayer};
 use crate::auth::require_token;
 use crate::events::{EventFilter, EventStore};
 use crate::guardian::{CynepicGuardian, Verdict};
+use crate::metrics::{track_requests, ServerMetrics};
+use crate::rate_limit::{rate_limit, IngestRateLimit};
 use crate::reflections;
 use crate::schema::{AgentTraceEvent, EventType};
 
@@ -31,6 +33,11 @@ pub struct AppState {
     /// Optional shared bearer token (ADR-007). `None` = open; `Some(_)` =
     /// every route except `/healthz` requires `Authorization: Bearer ...`.
     pub api_token: Option<Arc<String>>,
+    /// Prometheus metrics registry + handles (Slice 3).
+    pub metrics: Arc<ServerMetrics>,
+    /// Per-second rate limiter applied to `POST /v1/events` (Slice 3).
+    /// Constructed with `IngestRateLimit::new(None)` to disable.
+    pub ingest_rate_limit: Arc<IngestRateLimit>,
 }
 
 #[derive(Deserialize)]
@@ -64,29 +71,46 @@ struct IngestResponse {
 
 /// Build the Axum router used by both the binary and the integration tests.
 ///
-/// `/healthz` is mounted **outside** the auth middleware so liveness probes
-/// work even with `TRUSTLAYER_API_TOKEN` set (ADR-007).
+/// `/healthz` and `/metrics` are mounted **outside** the auth middleware so
+/// liveness probes and Prometheus scrapers work even with
+/// `TRUSTLAYER_API_TOKEN` set (ADR-007 + Slice 3).
 pub fn build_router(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let protected = Router::new()
-        .route("/v1/check", post(check_handler))
-        .route("/v1/events", post(ingest_handler).get(list_events_handler))
-        .route("/v1/sessions", get(list_sessions_handler))
-        .route(
-            "/v1/sessions/:agent_id/:session_id",
-            get(get_session_handler),
+    // POST/GET /v1/events share a route in axum, but only the POST should
+    // be rate-limited. We split them so the limiter applies asymmetrically.
+    let ingest_only = Router::new()
+        .route("/v1/events", post(ingest_handler))
+        .route_layer(middleware::from_fn_with_state(state.clone(), rate_limit));
+
+    let protected = ingest_only
+        .merge(
+            Router::new()
+                .route("/v1/check", post(check_handler))
+                .route("/v1/events", get(list_events_handler))
+                .route("/v1/sessions", get(list_sessions_handler))
+                .route(
+                    "/v1/sessions/:agent_id/:session_id",
+                    get(get_session_handler),
+                )
+                .route("/v1/reflections", get(list_reflections_handler))
+                .route("/v1/reflections/:name", get(get_reflection_handler)),
         )
-        .route("/v1/reflections", get(list_reflections_handler))
-        .route("/v1/reflections/:name", get(get_reflection_handler))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_token));
 
     Router::new()
         .merge(protected)
         .route("/healthz", get(|| async { "ok" }))
+        .route("/metrics", get(metrics_handler))
+        // The request-tracking middleware runs for *every* route — including
+        // /healthz and /metrics — so the dashboards can see scrape volume.
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            track_requests,
+        ))
         .layer(cors)
         .with_state(state)
 }
@@ -95,7 +119,10 @@ async fn check_handler(
     State(state): State<AppState>,
     Json(req): Json<CheckRequest>,
 ) -> impl IntoResponse {
+    let timer = state.metrics.check_duration_seconds.start_timer();
     let verdict: Verdict = state.guardian.evaluate(&req.event);
+    timer.observe_duration();
+    state.metrics.record_decision(verdict.decision);
     (StatusCode::OK, Json(verdict))
 }
 
@@ -108,13 +135,25 @@ async fn ingest_handler(
         EventBody::Batch(v) => v,
     };
     match state.events.append_batch(events) {
-        Ok(stored) => (StatusCode::OK, Json(IngestResponse { stored })).into_response(),
+        Ok(stored) => {
+            state.metrics.events_ingested_total.inc_by(stored as u64);
+            (StatusCode::OK, Json(IngestResponse { stored })).into_response()
+        }
         Err(err) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": err.to_string()})),
         )
             .into_response(),
     }
+}
+
+async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let body = state.metrics.render();
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        body,
+    )
 }
 
 async fn list_events_handler(

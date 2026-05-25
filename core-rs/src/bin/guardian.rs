@@ -34,7 +34,9 @@ use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 use trustlayer_core::policy_watch::spawn_watcher;
-use trustlayer_core::{build_router, AppState, CynepicGuardian, EventStore, Policy};
+use trustlayer_core::{
+    build_router, AppState, CynepicGuardian, EventStore, IngestRateLimit, Policy, ServerMetrics,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -105,11 +107,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("policy hot-reload disabled (TRUSTLAYER_POLICY_RELOAD=false)");
     }
 
+    let ingest_rate_limit = Arc::new(IngestRateLimit::from_env());
+    match ingest_rate_limit.limit_per_sec() {
+        Some(n) => info!("Ingest rate-limit: {n} req/s on POST /v1/events"),
+        None => info!("Ingest rate-limit: unlimited (TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC unset)"),
+    }
+
     let state = AppState {
         guardian,
         events: Arc::new(events_store),
         vault_path: Arc::new(vault_path),
         api_token,
+        metrics: Arc::new(ServerMetrics::new()),
+        ingest_rate_limit,
     };
 
     let app = build_router(state);
