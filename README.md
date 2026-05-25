@@ -19,10 +19,23 @@ no SaaS dependency required.
 | 4.5 | TypeScript guardian client + `Tracer.check()` (both SDKs) | shipped |
 | 4.6 | Hermes code-graph importer (GitNexus JSON → Obsidian notes) | shipped |
 | 5 | Trace-store API + dashboard (4 panes) + MCP server | shipped |
+| 6 | Open-protocol scaffolding: CI, auth, payload predicates, hot-reload, metrics, rate limit, MCP SSE, dashboard component tests, formal v0.1 spec | shipped through Slice 4a |
 
 See [`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md) for the
 authoritative roadmap and [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
 for the layered design.
+
+## Specification
+
+[`spec/v0.1/`](./spec/v0.1/) is the **citable, versioned protocol
+specification** — what implementations must do to claim
+"TrustLayer v0.1 compliant." Start at
+[`spec/v0.1/README.md`](./spec/v0.1/README.md). The spec uses RFC 2119
+keywords (MUST / SHOULD / MAY).
+
+[`docs/SCHEMA.md`](./docs/SCHEMA.md) is the implementation-mirror
+view of the same wire format — developer-friendly, evolves with the
+SDK code.
 
 ## Quickstart
 

@@ -1,6 +1,6 @@
 # Current Status
 
-**Phase:** Phase 6 — Slice 3 closed (metrics, ingest rate-limit, MCP SSE, dashboard component tests)
+**Phase:** Phase 6 — Slice 4a closed (formal v0.1 spec under `spec/v0.1/`)
 **Overall Status:** GREEN
 
 ## 📋 Roadmap & Task List
@@ -89,10 +89,17 @@ The audit slice that takes TrustLayer from "shipped prototype" to "credible open
   - **MCP HTTP/SSE transport** alongside stdio. New `resolve_transport()` helper maps env to a `TransportConfig` dataclass; `TRUSTLAYER_MCP_TRANSPORT={stdio,sse}` selects; SSE binds to `TRUSTLAYER_MCP_BIND` (default `127.0.0.1:8090`). Unknown values warn-log and fall back to stdio. Closes the SSE follow-up from ADR-006.
   - **Dashboard component tests** with React Testing Library. Vitest jsdom env per-file; `@testing-library/jest-dom/vitest` matchers via setup file. 19 new tests across the four panes (Traces, Sessions, Reflections, Policy) covering loading/error/empty/loaded states and the click-to-drill-down interactions.
   - Test totals after Slice 3: **244** (Rust 85, Python SDK 33, Hermes 44, MCP 21, TS SDK 33, Dashboard 33). Rust +11 (8 HTTP integration on /metrics + rate-limit, 3 rate_limit unit). MCP +9 (transport resolver). Dashboard +19 (component tests).
-- [ ] **Slice 4 — New phases (each gets its own ADR):** distributed event store, pyo3 FFI embedding, formal RFC-style spec under `spec/v0.1/`, Go SDK, OpenTelemetry exporter, LLM-backed reflector.
+- [ ] **Slice 4 — New phases (each gets its own ADR):**
+  - [x] **Slice 4a — Formal v0.1 spec under `spec/v0.1/`** (shipped 2026-05-25). ADR-010 captures the layout: versioned directories, RFC 2119 keywords, normative/informative section markers, spec authoritative vs `docs/SCHEMA.md` as the implementation mirror. Six normative documents (wire-format, event-types, cynefin, policy-language, http-api, conformance) plus a spec index and a v0.1 frontmatter README. Cross-linked from `README.md`, `docs/SCHEMA.md`, and `docs/VERSIONING.md`.
+  - [ ] Distributed event store (ADR + impl).
+  - [ ] `pyo3` FFI embedding of the Rust guardian (ADR + impl).
+  - [ ] Go SDK (ADR + impl mirroring Python/TS).
+  - [ ] OpenTelemetry exporter (ADR + impl).
+  - [ ] LLM-backed reflector in Hermes (ADR + impl).
 
 ## 📝 Recent Updates
-- **2026-05-25** (latest): Phase 6 Slice 3 closed — surface completeness. Three commits: `bc8bf27` (metrics + ingest rate-limit on the sidecar), `01584bc` (MCP SSE transport alongside stdio), and the dashboard component tests in this push. New Rust modules: `core-rs/src/metrics.rs`, `core-rs/src/rate_limit.rs`. New MCP unit-tested surface: `resolve_transport()`. New dashboard testing surface: `vitest.config.ts` + `tests/setup.ts` + 4 component test files. **244 tests** total across the matrix.
+- **2026-05-25** (latest): Phase 6 Slice 4a landed — formal v0.1 spec. New top-level `spec/` tree with a frozen `v0.1/` directory holding six normative documents and a README index. ADR-010 records the layout decision. `README.md`, `docs/SCHEMA.md`, and `docs/VERSIONING.md` now point at the spec as the citable source of truth and demote themselves to "implementation mirror" status for the same wire format. No code change — **244 tests** still green; the spec freezes the contract every existing test already enforces.
+- **2026-05-25**: Phase 6 Slice 3 closed — surface completeness. Three commits: `bc8bf27` (metrics + ingest rate-limit on the sidecar), `01584bc` (MCP SSE transport alongside stdio), and the dashboard component tests in this push. New Rust modules: `core-rs/src/metrics.rs`, `core-rs/src/rate_limit.rs`. New MCP unit-tested surface: `resolve_transport()`. New dashboard testing surface: `vitest.config.ts` + `tests/setup.ts` + 4 component test files. **244 tests** total across the matrix.
 - **2026-05-24**: Phase 6 Slice 2 landed — protocol hardening. Three ADRs (007 auth, 008 payload predicates, 009 hot-reload) and matching implementations. New files: `core-rs/src/auth.rs`, `core-rs/src/policy_watch.rs`, `core-rs/tests/policy_watch.rs`, `sdks/typescript/src/auth.ts`. Cargo deps `subtle`, `arc-swap`, `notify` added under the `server` feature (arc-swap is unconditional, it's <1 KB). Wire-format MINOR bump implied by ADR-008 (`payload` field added to `MatchSpec`); existing policies keep parsing unchanged. **210 tests** green across the matrix.
 - **2026-05-24**: Phase 6 Slice 1 landed — open-protocol scaffolding. `LICENSE`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/VERSIONING.md`, `.github/workflows/ci.yml` (matrix CI across rust/python/typescript). Phase-4 follow-up closed: `cargo fmt --check` and `cargo clippy --features server -- -D warnings` are now CI gates; three `map_or` → `is_none_or` clippy fixes in `core-rs/src/events.rs` plus a round of `cargo fmt` over six pre-existing fmt-dirty files. Full matrix verified locally before committing: **168 tests** green across all six surfaces.
 - **2026-05-23**: Polish batch on Phase 5 — docs/manifests reflect shipped reality (`README.md` roadmap rows, `docs/ARCHITECTURE.md` four-layer story, `docs/SCHEMA.md` trace-store HTTP contract, Guardian/Hermes/MCP manifests bumped). Dashboard tests landed — vitest wired into `dashboard/`, 11 cases against `api.ts` cover URL construction, filter encoding, path-segment escaping, and HTTP-status propagation. Closes the only "no in-language tests for the dashboard" gap.

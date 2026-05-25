@@ -1,13 +1,19 @@
 # TrustLayer Event Schema
 
-**`SCHEMA_VERSION = 0.2`** — see `docs/VERSIONING.md`. `0.2` is the
-first version that documents the `MatchSpec.payload` predicate field
-(ADR-008); the wire envelope itself is unchanged from `0.1`.
+> **The citable, normative spec lives at
+> [`spec/v0.1/`](../spec/v0.1/README.md).** This document is the
+> implementation-mirror view of the same wire format —
+> developer-friendly, evolves with the SDK code. When the two disagree,
+> the spec is authoritative.
+
+**`SCHEMA_VERSION = 0.2`** — see [`docs/VERSIONING.md`](./VERSIONING.md).
+`0.2` is the first version that documents the `MatchSpec.payload`
+predicate field (ADR-008); the wire envelope itself is unchanged from
+`0.1`.
 
 TrustLayer uses an OpenTelemetry-inspired schema for tracking agentic
-execution. **This document is the contract.** Both SDKs serialise to
-the same shape, and the Rust core (Phase 4) plus Hermes (Phase 3) consume
-it without re-deriving types.
+execution. Both SDKs serialise to the same shape, and the Rust core
+(Phase 4) plus Hermes (Phase 3) consume it without re-deriving types.
 
 | Layer | Implementation |
 |---|---|

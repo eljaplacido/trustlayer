@@ -50,6 +50,12 @@ The authoritative roadmap and per-phase status live in
 - **Dashboard component tests** (React Testing Library + jsdom) for
   all four panes (Traces, Sessions, Reflections, Policy) covering
   loading / error / empty / loaded states and drill-down clicks.
+- **Formal v0.1 protocol spec** under `spec/v0.1/`. Six normative
+  documents (wire format, event types, Cynefin domain, policy
+  language including ADR-008 payload predicates, HTTP API,
+  conformance) plus a versioned index. The spec is the citable
+  source of truth; `docs/SCHEMA.md` becomes the implementation
+  mirror. ADR-010 records the layout.
 
 ### Wire format (MINOR — additive, backwards-compatible)
 - **ADR-008 — `MatchSpec` payload predicates.** `MatchSpec` gains an
