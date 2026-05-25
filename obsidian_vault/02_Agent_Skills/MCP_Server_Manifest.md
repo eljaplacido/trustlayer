@@ -2,10 +2,10 @@
 skill: trustlayer-mcp
 status: active
 description: MCP server bridging TrustLayer (SDK + guardian + Hermes) to MCP-aware clients
-version: 0.1.0
+version: 0.2.0
 language: Python
 entry_point: mcp-server/src/trustlayer_mcp/server.py
-transport: stdio
+transport: stdio | sse
 links:
   - "[[../01_Architecture/ADR-006-Phase-5-Dashboard-MCP]]"
 ---
@@ -55,6 +55,24 @@ python -m venv .venv && .venv/bin/pip install -e ../sdks/python -e .
 - `mcp-server/src/trustlayer_mcp/server.py` — FastMCP wrapper + `main()`
 - `mcp-server/tests/test_tools.py` — 12 pytest cases (handlers tested directly)
 
-## Transport note
-stdio for v1 — every MCP client supports it. An SSE/HTTP transport is a
-one-line FastMCP change if remote agents ever need to reach it.
+## Transport (Slice 3)
+
+| Env var | Default | Effect |
+|---|---|---|
+| `TRUSTLAYER_MCP_TRANSPORT` | `stdio` | `stdio` or `sse`. Unknown values fall back to stdio. |
+| `TRUSTLAYER_MCP_BIND` | `127.0.0.1:8090` | `host:port` for the SSE transport. Empty host = `127.0.0.1`; non-integer port = default. |
+
+`resolve_transport()` in `server.py` is the pure decision boundary —
+it returns a `TransportConfig` dataclass that tests exercise directly
+without spinning a real server. `main()` applies the config and calls
+`mcp.run(transport=...)`.
+
+Pick `sse` when:
+- A remote agent needs to reach the server over HTTP (Tailscale, a
+  reverse proxy, a separate pod).
+- You want to share one MCP server across multiple Claude Code
+  sessions on the same host.
+
+Stay on `stdio` when:
+- The MCP client launches the server as a subprocess (the Claude
+  Code default, and how most MCP IDE plugins work).
