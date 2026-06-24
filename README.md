@@ -22,7 +22,7 @@ sidecar, and get:
   OTel pipeline (OTLP, Jaeger, Tempo, Honeycomb, Grafana, Datadog).
 
 No SaaS account. No telemetry leaking offsite. Apache-2.0. Four
-reference SDKs, one wire format, 297 tests in CI.
+reference SDKs, one wire format, 309 tests in CI.
 
 The wire format is a versioned, RFC-2119 specification at
 [`spec/v0.1/`](./spec/v0.1/) — designed so anyone can write their own
@@ -817,34 +817,32 @@ trustlayer/
 
 ## Status & roadmap
 
-297 tests across the matrix, all green in CI:
+309 tests across the matrix, all green in CI:
 
 | Surface | Tests |
 |---|---|
 | Rust core (`core-rs`) | 86 (lib unit + cross-language + HTTP + policy-watch) |
 | Python SDK (`sdks/python`) | 49 |
-| Hermes (`skills/hermes`) | 44 |
+| Hermes (`skills/hermes`) | 56 |
 | MCP server (`mcp-server`) | 21 |
 | TypeScript SDK (`sdks/typescript`) | 33 |
 | Dashboard (`dashboard`) | 33 |
 | Go SDK (`sdks/go`) | 31 |
-| **Total** | **297** |
+| **Total** | **309** |
 
-**Shipped (Phases 1–6 Slice 4c):** SDKs in four languages, policy
+**Shipped (Phases 1–6 Slice 4f):** SDKs in four languages, policy
 engine with payload predicates and hot-reload, trace store with
 filtered queries, append-only persistence, dashboard, MCP server
-(stdio + SSE), Hermes memory + reflections + code graph, bearer-token
-auth, ingest rate limit, Prometheus `/metrics`, OpenTelemetry bridge,
-formal v0.1 spec with conformance fixtures, Apache-2.0 LICENSE,
-CONTRIBUTING + CHANGELOG + SemVer policy, matrix CI.
+(stdio + SSE), Hermes memory + reflections + code graph + LLM-backed
+narrative reflection, bearer-token auth, ingest rate limit,
+Prometheus `/metrics`, OpenTelemetry bridge, formal v0.1 spec with
+conformance fixtures, pyo3 FFI for in-process evaluation,
+Docker quickstart deployment, Apache-2.0 LICENSE, CONTRIBUTING +
+CHANGELOG + SemVer + release policy, matrix CI.
 
-**In progress (Phase 6 Slice 4 remainder):**
-
-- `pyo3` FFI embedding of the Rust guardian into Python (drops the
-  ~100µs HTTP cost on the hot path).
-- LLM-backed reflector for Hermes (the `ReflectionEngine` Protocol
-  seam is already in place).
-- Distributed event store (single-host JSONL is fine until it isn't).
+**Complete.** The Phase 6 Slice 4 items (LLM reflector, pyo3 FFI,
+Docker deployment, release checklist) are all shipped. See
+[`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md).
 
 **Pre-`v0.1.0` release tasks:** tag releases per
 [`docs/VERSIONING.md`](./docs/VERSIONING.md), publish to PyPI / npm

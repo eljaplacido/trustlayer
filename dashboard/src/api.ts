@@ -105,7 +105,15 @@ export async function fetchReflection(
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal, headers: authHeaders() });
   if (!res.ok) {
-    throw new Error(`GET ${url} -> HTTP ${res.status}`);
+    let detail = "";
+    try {
+      const text = await res.text();
+      detail = text.trim();
+    } catch {
+      detail = "";
+    }
+    const suffix = detail ? `: ${detail}` : "";
+    throw new Error(`GET ${url} -> HTTP ${res.status}${suffix}`);
   }
   return (await res.json()) as T;
 }

@@ -33,7 +33,7 @@ and document the migration. From `1.0` onwards we follow strict SemVer.
 The wire-format version is declared **normatively** by the
 [`spec/v0.1/`](../spec/v0.1/README.md) directory name and the
 `schema_version` field in its frontmatter. [`docs/SCHEMA.md`](./SCHEMA.md)
-mirrors that constant (currently `0.2`) for developer convenience.
+mirrors that constant (currently `0.1`) for developer convenience.
 
 The version follows the protocol rules below, **not** the version of any
 particular SDK. Two implementations are compatible if and only if they

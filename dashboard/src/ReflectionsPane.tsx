@@ -60,14 +60,18 @@ export function ReflectionsPane() {
   }
 
   if (list.kind === "loading") {
-    return <pre style={mutedStyle}>loading…</pre>;
+    return (
+      <pre style={mutedStyle} role="status" aria-live="polite">
+        loading…
+      </pre>
+    );
   }
   if (list.kind === "error") {
-    return <pre style={errorStyle}>{list.message}</pre>;
+    return <pre style={errorStyle} role="alert">{list.message}</pre>;
   }
   if (list.metas.length === 0) {
     return (
-      <pre style={mutedStyle}>
+      <pre style={mutedStyle} role="status" aria-live="polite">
         No reflections yet. Hermes writes them on a reflection pass:{"\n"}
         {"  "}PYTHONPATH=skills python -m hermes.cli --vault obsidian_vault
         ingest traces.jsonl --reflect{"\n"}
@@ -88,13 +92,15 @@ export function ReflectionsPane() {
       <ul style={listStyle}>
         {list.metas.map((m) => (
           <li key={m.name}>
-            <button
-              type="button"
-              style={m.name === activeName ? itemActiveStyle : itemStyle}
-              onClick={() => open(m.name)}
-            >
-              {m.date}
-            </button>
+              <button
+                type="button"
+                style={m.name === activeName ? itemActiveStyle : itemStyle}
+                onClick={() => open(m.name)}
+                aria-pressed={m.name === activeName}
+                aria-current={m.name === activeName ? "true" : undefined}
+              >
+                {m.date}
+              </button>
           </li>
         ))}
       </ul>
@@ -106,11 +112,15 @@ export function ReflectionsPane() {
 function renderView(view: ViewStatus) {
   switch (view.kind) {
     case "idle":
-      return <pre style={mutedStyle}>Select a reflection date.</pre>;
+      return <pre style={mutedStyle} role="status">Select a reflection date.</pre>;
     case "loading":
-      return <pre style={mutedStyle}>loading {view.name}…</pre>;
+      return (
+        <pre style={mutedStyle} role="status" aria-live="polite">
+          loading {view.name}…
+        </pre>
+      );
     case "error":
-      return <pre style={errorStyle}>{view.message}</pre>;
+      return <pre style={errorStyle} role="alert">{view.message}</pre>;
     case "ok":
       return <pre style={markdownStyle}>{view.reflection.content}</pre>;
   }

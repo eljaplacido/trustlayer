@@ -23,7 +23,7 @@ systems. It intercepts tool calls, evaluates policies (Rust core, Phase
 - `mcp-server/` — Python MCP server (FastMCP stdio) bridging SDK +
   Guardian + Hermes to MCP-aware clients. **Phase 5, shipped.**
 - `dashboard/` — React + Vite + TypeScript shell for the observability
-  UI. **Phase 5, scaffolded** (data source TBD — see ADR-006).
+  UI. **Phase 5, shipped** (all four panes live on trace-store API).
 - `obsidian_vault/` — human-readable knowledge graph (architecture,
   agent skills, memory traces, reflections).
 - `docs/` — architecture blueprints, schemas, and status tracking.
@@ -31,8 +31,9 @@ systems. It intercepts tool calls, evaluates policies (Rust core, Phase
 ## Where the truth lives
 - **Phase status** — `docs/CURRENT_STATUS.md`. Read it first. Update it
   when you finish a task.
-- **Wire format** — `docs/SCHEMA.md`. This is the contract for every
-  layer. Do not invent a second copy.
+- **Wire format (normative)** — `spec/v0.1/`. This is the contract for
+  every layer.
+- **Wire format (implementation mirror)** — `docs/SCHEMA.md`.
 - **Architecture** — `docs/ARCHITECTURE.md`, plus ADRs in
   `obsidian_vault/01_Architecture/`.
 - **Reasoning / decisions / reflections** — `obsidian_vault/` only,

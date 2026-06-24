@@ -6,6 +6,7 @@ markdown into the vault. See ``obsidian_vault/01_Architecture/ADR-002``.
 
 from .code_graph import CodeEdge, CodeGraph, CodeGraphImporter, CodeNode
 from .hermes_agent import HermesAgent
+from .llm_reflector import LLMReflection, LLMReflector
 from .reflector import (
     DeterministicReflector,
     Reflection,
@@ -21,6 +22,8 @@ __all__ = [
     "CodeNode",
     "DeterministicReflector",
     "HermesAgent",
+    "LLMReflection",
+    "LLMReflector",
     "Reflection",
     "ReflectionEngine",
     "SessionSummary",

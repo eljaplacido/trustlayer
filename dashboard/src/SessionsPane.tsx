@@ -71,14 +71,18 @@ export function SessionsPane() {
   }
 
   if (list.kind === "loading") {
-    return <pre style={mutedStyle}>loading…</pre>;
+    return (
+      <pre style={mutedStyle} role="status" aria-live="polite">
+        loading…
+      </pre>
+    );
   }
   if (list.kind === "error") {
-    return <pre style={errorStyle}>{list.message}</pre>;
+    return <pre style={errorStyle} role="alert">{list.message}</pre>;
   }
   if (list.sessions.length === 0) {
     return (
-      <pre style={mutedStyle}>
+      <pre style={mutedStyle} role="status" aria-live="polite">
         No sessions yet. POST trace events to <code>/v1/events</code> on
         the sidecar.
       </pre>
@@ -86,14 +90,15 @@ export function SessionsPane() {
   }
 
   return (
-    <table style={tableStyle}>
+    <table style={tableStyle} aria-label="Agent sessions">
+      <caption style={srOnlyStyle}>Agent sessions</caption>
       <thead>
         <tr>
-          <th style={thStyle}>agent</th>
-          <th style={thStyle}>session</th>
-          <th style={thNumStyle}>events</th>
-          <th style={thStyle}>first seen</th>
-          <th style={thStyle}>last seen</th>
+          <th scope="col" style={thStyle}>agent</th>
+          <th scope="col" style={thStyle}>session</th>
+          <th scope="col" style={thNumStyle}>events</th>
+          <th scope="col" style={thStyle}>first seen</th>
+          <th scope="col" style={thStyle}>last seen</th>
         </tr>
       </thead>
       <tbody>
@@ -105,6 +110,16 @@ export function SessionsPane() {
               <tr
                 style={isOpen ? rowOpenStyle : rowStyle}
                 onClick={() => toggleSession(s.agent_id, s.session_id)}
+                onKeyDown={(evt) => {
+                  if (evt.key === "Enter" || evt.key === " ") {
+                    evt.preventDefault();
+                    void toggleSession(s.agent_id, s.session_id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
+                aria-label={`Session ${s.session_id} for agent ${s.agent_id}`}
               >
                 <td style={tdStyle}>{s.agent_id}</td>
                 <td style={tdStyle}>
@@ -131,10 +146,14 @@ export function SessionsPane() {
 
 function renderDrill(drill: DrillStatus) {
   if (drill.kind === "loading") {
-    return <pre style={mutedStyle}>loading session…</pre>;
+    return (
+      <pre style={mutedStyle} role="status" aria-live="polite">
+        loading session…
+      </pre>
+    );
   }
   if (drill.kind === "error") {
-    return <pre style={errorStyle}>{drill.message}</pre>;
+    return <pre style={errorStyle} role="alert">{drill.message}</pre>;
   }
   if (drill.events.length === 0) {
     return <pre style={mutedStyle}>(no events)</pre>;
@@ -259,4 +278,15 @@ const errorStyle: React.CSSProperties = {
   padding: 12,
   borderRadius: 6,
   whiteSpace: "pre-wrap",
+};
+
+const srOnlyStyle: React.CSSProperties = {
+  border: 0,
+  clip: "rect(0 0 0 0)",
+  height: 1,
+  margin: -1,
+  overflow: "hidden",
+  padding: 0,
+  position: "absolute",
+  width: 1,
 };

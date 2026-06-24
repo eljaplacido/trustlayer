@@ -10,6 +10,8 @@
 pub mod auth;
 pub mod error;
 pub mod events;
+#[cfg(feature = "python")]
+pub mod ffi;
 pub mod guardian;
 #[cfg(feature = "server")]
 pub mod metrics;

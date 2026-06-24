@@ -6,10 +6,8 @@
 > developer-friendly, evolves with the SDK code. When the two disagree,
 > the spec is authoritative.
 
-**`SCHEMA_VERSION = 0.2`** — see [`docs/VERSIONING.md`](./VERSIONING.md).
-`0.2` is the first version that documents the `MatchSpec.payload`
-predicate field (ADR-008); the wire envelope itself is unchanged from
-`0.1`.
+**`SCHEMA_VERSION = 0.1`** — see [`docs/VERSIONING.md`](./VERSIONING.md)
+and the normative spec at [`spec/v0.1/`](../spec/v0.1/README.md).
 
 TrustLayer uses an OpenTelemetry-inspired schema for tracking agentic
 execution. Both SDKs serialise to the same shape, and the Rust core

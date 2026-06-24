@@ -1,0 +1,80 @@
+# TrustLayer — self-hosted quickstart deployment.
+#
+# Brings up the guardian sidecar + dashboard in one command:
+#   docker compose up
+#
+# Access:
+#   Guardian API:  http://localhost:8089
+#   Dashboard:     http://localhost:5173
+#   Metrics:       http://localhost:8089/metrics
+#
+# Production hardening:
+#   1. Set TRUSTLAYER_API_TOKEN to a strong random value.
+#   2. Mount your own policy at ./core-rs/policies/default.json.
+#   3. Set TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC for the ingest rate limit.
+#   4. Use a reverse proxy (nginx, Caddy) for TLS termination.
+#   5. Mount a persistent volume for events.jsonl and the vault.
+
+services:
+  # ── Guardian sidecar ──────────────────────────────────────────────
+  guardian:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${TRUSTLAYER_BIND:-127.0.0.1:8089}:8089"
+    environment:
+      TRUSTLAYER_BIND: "0.0.0.0:8089"
+      TRUSTLAYER_POLICY: /etc/trustlayer/policy.json
+      TRUSTLAYER_POLICY_RELOAD: "${TRUSTLAYER_POLICY_RELOAD:-true}"
+      TRUSTLAYER_EVENTS_PATH: /data/events.jsonl
+      TRUSTLAYER_VAULT_PATH: /data/vault
+      TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
+      TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC: "${TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC:-}"
+      RUST_LOG: "${RUST_LOG:-info}"
+    volumes:
+      - trustlayer_data:/data
+      - ./core-rs/policies/default.json:/etc/trustlayer/policy.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8089/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Dashboard ─────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: ../docker/Dockerfile.dashboard
+    ports:
+      - "${DASHBOARD_PORT:-5173}:80"
+    environment:
+      VITE_TRUSTLAYER_BASE_URL: "${VITE_TRUSTLAYER_BASE_URL:-http://localhost:8089}"
+      VITE_TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
+    restart: unless-stopped
+    depends_on:
+      guardian:
+        condition: service_healthy
+
+  # ── Hermes (optional — reflection + memory agent) ─────────────────
+  hermes:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.hermes
+    environment:
+      TRUSTLAYER_GUARDIAN_URL: "http://guardian:8089"
+      TRUSTLAYER_VAULT_PATH: /data/vault
+      TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
+    volumes:
+      - trustlayer_data:/data
+    restart: unless-stopped
+    depends_on:
+      guardian:
+        condition: service_healthy
+    # Profiles let you opt-in: `docker compose --profile hermes up`
+    profiles:
+      - hermes
+
+volumes:
+  trustlayer_data:

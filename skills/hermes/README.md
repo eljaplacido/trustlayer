@@ -49,13 +49,28 @@ idempotent: events deduplicate on `trace_id`.
 python -m hermes.cli \
     --vault <vault-root> \
     ingest <path-to-events.jsonl> \
-    [--reflect]
+    [--reflect] \
+    [--reflector deterministic|llm]
 ```
 
 Accepts JSONL where each line is an `AgentTraceEvent`, a dict the
 SDK schema can validate, or a JSON-encoded version of either.
 `--reflect` runs a reflection pass after ingest and writes a dated
 synthesis note.
+
+When `--reflector llm` is selected, Hermes uses the first-party
+`LLMReflector` (ADR-013) to generate a narrative summary on top of the
+deterministic structural metrics. Configure it with:
+
+```bash
+python -m hermes.cli \
+    --vault <vault-root> \
+    --reflector llm \
+    --llm-endpoint http://127.0.0.1:11434/api/chat \
+    --llm-model nemotron-3-super:120b \
+    --llm-timeout 30 \
+    ingest <path-to-events.jsonl> --reflect
+```
 
 ### `import-code-graph`
 
@@ -102,32 +117,46 @@ For LLM-friendly summaries, each session exposes
 `SessionSummary.compact_text(max_chars=600)` — a one-line, token-lean
 form suitable for prompt context.
 
-### Pluggable reflection (ADR-002)
+### Pluggable reflection (ADR-002, ADR-013)
 
 The default reflector is `DeterministicReflector` — counts tools,
 failed policies, latency totals, escalation rate. To swap in an
 LLM-backed implementation, implement the `ReflectionEngine` Protocol:
 
 ```python
-from hermes.reflector import ReflectionEngine, SessionSummary
+from hermes.reflector import Reflection, ReflectionEngine, SessionSummary
+from trustlayer import AgentTraceEvent
 
 class MyLLMReflector(ReflectionEngine):
-    def reflect(self, summaries: list[SessionSummary]) -> str:
-        # ...synthesise via your LLM of choice...
-        return markdown
+    def summarise_session(self, events: list[AgentTraceEvent]) -> SessionSummary:
+        ...
+
+    def synthesise(self, summaries: list[SessionSummary]) -> Reflection:
+        ...
 
 agent = HermesAgent(vault_path="obsidian_vault", reflector=MyLLMReflector())
 ```
 
-The Protocol seam is in place; a first-party LLM reflector is on the
-Slice 4 roadmap.
+TrustLayer also ships a first-party implementation:
+
+```python
+from hermes import HermesAgent, LLMReflector
+
+agent = HermesAgent(
+    vault_path="obsidian_vault",
+    reflector=LLMReflector(
+        endpoint="http://127.0.0.1:11434/api/chat",
+        model="nemotron-3-super:120b",
+    ),
+)
+```
 
 ## Tests
 
 ```bash
 cd skills/hermes
 pip install -e ../../sdks/python   # SDK is the schema source
-pytest                              # 44 cases
+pytest                              # 56 cases
 ```
 
 Coverage:
@@ -138,6 +167,7 @@ Coverage:
 - `test_cli.py` — CLI exit codes + flag parsing.
 - `test_code_graph.py` — GitNexus JSON parsing and note emission.
 - `test_render.py` — markdown rendering.
+- `test_llm_reflector.py` — LLM narrative reflection + fallback behaviour.
 
 ## Vault layout
 

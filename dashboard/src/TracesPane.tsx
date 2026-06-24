@@ -40,11 +40,15 @@ export function TracesPane() {
   }, []);
 
   if (status.kind === "loading") {
-    return <pre style={mutedStyle}>loading…</pre>;
+    return (
+      <pre style={mutedStyle} role="status" aria-live="polite">
+        loading…
+      </pre>
+    );
   }
   if (status.kind === "error") {
     return (
-      <pre style={errorStyle}>
+      <pre style={errorStyle} role="alert">
         Could not reach the TrustLayer sidecar:{"\n"}
         {status.message}
         {"\n\n"}
@@ -55,7 +59,7 @@ export function TracesPane() {
   }
   if (status.events.length === 0) {
     return (
-      <pre style={mutedStyle}>
+      <pre style={mutedStyle} role="status" aria-live="polite">
         No events yet. POST an AgentTraceEvent to{" "}
         <code>/v1/events</code> on the sidecar.
       </pre>
@@ -63,14 +67,15 @@ export function TracesPane() {
   }
 
   return (
-    <table style={tableStyle}>
+    <table style={tableStyle} aria-label="Recent trace events">
+      <caption style={srOnlyStyle}>Recent trace events</caption>
       <thead>
         <tr>
-          <th style={thStyle}>time</th>
-          <th style={thStyle}>agent</th>
-          <th style={thStyle}>session</th>
-          <th style={thStyle}>event</th>
-          <th style={thStyle}>tool / payload hint</th>
+          <th scope="col" style={thStyle}>time</th>
+          <th scope="col" style={thStyle}>agent</th>
+          <th scope="col" style={thStyle}>session</th>
+          <th scope="col" style={thStyle}>event</th>
+          <th scope="col" style={thStyle}>tool / payload hint</th>
         </tr>
       </thead>
       <tbody>
@@ -146,4 +151,15 @@ const errorStyle: React.CSSProperties = {
   padding: 12,
   borderRadius: 6,
   whiteSpace: "pre-wrap",
+};
+
+const srOnlyStyle: React.CSSProperties = {
+  border: 0,
+  clip: "rect(0 0 0 0)",
+  height: 1,
+  margin: -1,
+  overflow: "hidden",
+  padding: 0,
+  position: "absolute",
+  width: 1,
 };

@@ -7,14 +7,16 @@ format.
 
 ## The wire format is the contract
 
-Every component speaks `AgentTraceEvent` (see
+Every component speaks `AgentTraceEvent` (normative spec:
+[`spec/v0.1/`](../spec/v0.1/README.md), implementation mirror:
 [`SCHEMA.md`](./SCHEMA.md)). The Python (`trustlayer-sdk`) and TypeScript
-(`@trustlayer/sdk`) clients ship Pydantic and Zod definitions that mirror
-the schema byte-for-byte; round-tripping the same JSON between them is a
-test (see `sdks/*/tests/`). The Rust core (Phase 4) and Hermes (Phase 3)
-both consume the same envelope without re-deriving types.
+(`@trustlayer/sdk`) plus Go (`trustlayer`) clients ship schema definitions
+that mirror the wire format byte-for-byte; round-tripping the same JSON
+between them is a test (see `sdks/*/tests/` and `core-rs/tests/cross_language.rs`).
+The Rust core (Phase 4) and Hermes (Phase 3) both consume the same
+envelope without re-deriving types.
 
-## The three layers
+## The four layers
 
 ```
                                    AgentTraceEvent
@@ -30,6 +32,7 @@ both consume the same envelope without re-deriving types.
 ║                       ║   ║                       ║   ║                       ║
 ║  sdks/python/         ║   ║  core-rs/             ║   ║  skills/hermes/       ║
 ║  sdks/typescript/     ║   ║  cynepic-guardian     ║   ║  obsidian_vault/      ║
+║  sdks/go/             ║   ║                       ║   ║                       ║
 ║                       ║   ║                       ║   ║                       ║
 ║  Tracer + Client      ║   ║  Policy parser        ║   ║  Schema-typed ingest  ║
 ║  emit events          ║   ║  Circuit breaker      ║   ║  Idempotent cache     ║
@@ -54,8 +57,8 @@ The Rust core (`core-rs/`) hosts the `cynepic-guardian` circuit breaker
 and the JSON-based CSL policy language. The guardian receives an
 `AgentTraceEvent` (typically a `TOOL_CALL` or `LLM_CALL`) and returns a
 `Decision` of `PASS`, `FAIL`, or `ESCALATE` together with the rule that
-matched. Ships today as an Axum HTTP sidecar (`trustlayer-guardian`);
-in-process FFI is a future optimisation. Cynefin-aware default: events
+matched. Ships as an Axum HTTP sidecar (`trustlayer-guardian`) and as an
+optional in-process Python extension via `pyo3` (ADR-014). Cynefin-aware default: events
 classified `CHAOTIC` escalate by default when no rule matches.
 
 ### 3. Reflect (Phase 3 — shipped)
@@ -78,7 +81,7 @@ The read side. Two surfaces sit on top of the three layers above:
 - **Dashboard** (`dashboard/`) — a React + Vite SPA with four panes
   (Traces, Sessions, Reflections, Policy) that polls the trace-store
   API. CORS is permissive so it can run on its own port.
-- **MCP server** (`mcp-server/`) — a Python FastMCP stdio server that
+- **MCP server** (`mcp-server/`) — a Python FastMCP server (stdio + SSE) that
   exposes the SDK, guardian, and Hermes as MCP tools so any MCP-aware
   agent can drive TrustLayer without per-language bindings.
 
@@ -106,7 +109,7 @@ agent process ──SDK──>    │  trustlayer-guardian (HTTP)      │
                                               ├─> 03_Memory_Traces/ (session notes)
                                               └─> 05_Reflections/   (synthesis notes)
 
-MCP-aware agents ──stdio──> mcp-server/ ──> SDK + guardian + Hermes
+MCP-aware agents ──stdio / SSE──> mcp-server/ ──> SDK + guardian + Hermes
 ```
 
 - The SDK calls `GuardianClient.check(event)` synchronously before
@@ -121,12 +124,13 @@ MCP-aware agents ──stdio──> mcp-server/ ──> SDK + guardian + Hermes
 
 ## Future optimisations (not blocking)
 
-- **FFI embedding** of the Rust guardian directly in Python (via
-  `pyo3`) to drop the ~100µs HTTP cost.
-- **Auth on the trace-store ingest routes** — they listen on loopback
-  only for v0, so token gating is a follow-up, not a blocker.
-- **MCP HTTP transport** — the MCP server is stdio-only today; an SSE
-  transport would let remote agents reach it (one-line FastMCP change).
+- **Distributed event store backend** — current append-only JSONL is
+  single-host by design; a replicated backend is the next scale step.
+- **Richer auth** — bearer token auth is shipped for v0; mTLS / OAuth2
+  remain follow-on options for multi-tenant deployments.
+- **Hermes narrative reflection defaults** — deterministic reflection is
+  the safe baseline; LLM-backed reflection can be promoted to first-class
+  runtime mode in future releases.
 
 ## ADRs
 
@@ -139,6 +143,14 @@ The "why" behind each layer is recorded in
 - **ADR-004 — cynepic-guardian + policy language** (Phase 4, accepted)
 - **ADR-005 — Code-graph sense-making via GitNexus** (Phase 4.6, accepted)
 - **ADR-006 — Phase 5: Dashboard + MCP server** (Phase 5, accepted)
+- **ADR-007 — Bearer-token auth for sidecar + SDKs** (accepted)
+- **ADR-008 — MatchSpec payload predicates** (accepted)
+- **ADR-009 — Policy hot-reload via file watch + ArcSwap** (accepted)
+- **ADR-010 — Formal protocol spec layout (`spec/v0.1/`)** (accepted)
+- **ADR-011 — Go SDK** (accepted)
+- **ADR-012 — OpenTelemetry exporter (Python SDK)** (accepted)
+- **ADR-013 — LLM-backed Hermes reflection** (accepted)
+- **ADR-014 — pyo3 FFI embedding for guardian** (accepted)
 
 ## Non-goals (for now)
 - A bespoke time-series database — JSONL + Obsidian is enough for the

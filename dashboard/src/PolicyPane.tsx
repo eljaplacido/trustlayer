@@ -40,14 +40,18 @@ export function PolicyPane() {
   }, []);
 
   if (status.kind === "loading") {
-    return <pre style={mutedStyle}>loading…</pre>;
+    return (
+      <pre style={mutedStyle} role="status" aria-live="polite">
+        loading…
+      </pre>
+    );
   }
   if (status.kind === "error") {
-    return <pre style={errorStyle}>{status.message}</pre>;
+    return <pre style={errorStyle} role="alert">{status.message}</pre>;
   }
   if (status.events.length === 0) {
     return (
-      <pre style={mutedStyle}>
+      <pre style={mutedStyle} role="status" aria-live="polite">
         No policy checks yet. They appear when an agent calls{" "}
         <code>Tracer.check()</code> or emits a <code>POLICY_CHECK</code>{" "}
         event.
@@ -56,14 +60,15 @@ export function PolicyPane() {
   }
 
   return (
-    <table style={tableStyle}>
+    <table style={tableStyle} aria-label="Recent policy checks">
+      <caption style={srOnlyStyle}>Recent policy checks</caption>
       <thead>
         <tr>
-          <th style={thStyle}>time</th>
-          <th style={thStyle}>agent</th>
-          <th style={thStyle}>verdict</th>
-          <th style={thStyle}>action</th>
-          <th style={thStyle}>reason</th>
+          <th scope="col" style={thStyle}>time</th>
+          <th scope="col" style={thStyle}>agent</th>
+          <th scope="col" style={thStyle}>verdict</th>
+          <th scope="col" style={thStyle}>action</th>
+          <th scope="col" style={thStyle}>reason</th>
         </tr>
       </thead>
       <tbody>
@@ -75,7 +80,12 @@ export function PolicyPane() {
               <td style={tdStyle}>{formatTs(e.timestamp)}</td>
               <td style={tdStyle}>{e.agent_id}</td>
               <td style={tdStyle}>
-                <span style={verdictStyle(result)}>{result || "—"}</span>
+                <span
+                  style={verdictStyle(result)}
+                  aria-label={`Policy verdict ${result || "unknown"}`}
+                >
+                  {result || "—"}
+                </span>
               </td>
               <td style={tdStyle}>{strOr(p.action)}</td>
               <td style={tdStyle}>{strOr(p.reason)}</td>
@@ -151,4 +161,15 @@ const errorStyle: React.CSSProperties = {
   padding: 12,
   borderRadius: 6,
   whiteSpace: "pre-wrap",
+};
+
+const srOnlyStyle: React.CSSProperties = {
+  border: 0,
+  clip: "rect(0 0 0 0)",
+  height: 1,
+  margin: -1,
+  overflow: "hidden",
+  padding: 0,
+  position: "absolute",
+  width: 1,
 };

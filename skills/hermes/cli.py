@@ -15,6 +15,8 @@ from pathlib import Path
 
 from .code_graph import CodeGraphImporter
 from .hermes_agent import HermesAgent
+from .llm_reflector import LLMReflector
+from .reflector import ReflectionEngine
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,6 +27,28 @@ def main(argv: list[str] | None = None) -> int:
         "--vault",
         required=True,
         help="Path to the Obsidian vault root (e.g. obsidian_vault/).",
+    )
+    parser.add_argument(
+        "--reflector",
+        choices=["deterministic", "llm"],
+        default="deterministic",
+        help="Reflection engine to use when running reflection steps.",
+    )
+    parser.add_argument(
+        "--llm-endpoint",
+        default="http://127.0.0.1:11434/api/chat",
+        help="LLM chat endpoint used when --reflector=llm.",
+    )
+    parser.add_argument(
+        "--llm-model",
+        default="nemotron-3-super:120b",
+        help="LLM model used when --reflector=llm.",
+    )
+    parser.add_argument(
+        "--llm-timeout",
+        type=float,
+        default=30.0,
+        help="LLM request timeout in seconds when --reflector=llm.",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -56,36 +80,55 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    reflector = _build_reflector(args)
 
     if args.cmd == "ingest":
-        agent = HermesAgent(Path(args.vault))
-        for note in agent.ingest_jsonl(args.jsonl):
-            print(note)
-        if args.reflect:
+        agent = HermesAgent(Path(args.vault), reflector=reflector)
+        try:
+            for note in agent.ingest_jsonl(args.jsonl):
+                print(note)
+            if args.reflect:
+                reflection = agent.reflect()
+                if reflection:
+                    print(reflection)
+        except (FileNotFoundError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+    if args.cmd == "reflect":
+        agent = HermesAgent(Path(args.vault), reflector=reflector)
+        try:
+            agent.ingest_jsonl(args.jsonl)
             reflection = agent.reflect()
             if reflection:
                 print(reflection)
-        return 0
-    if args.cmd == "reflect":
-        agent = HermesAgent(Path(args.vault))
-        agent.ingest_jsonl(args.jsonl)
-        reflection = agent.reflect()
-        if reflection:
-            print(reflection)
-            return 0
-        print("No sessions to reflect on.", file=sys.stderr)
-        return 1
+                return 0
+            print("No sessions to reflect on.", file=sys.stderr)
+            return 1
+        except (FileNotFoundError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
     if args.cmd == "import-code-graph":
         importer = CodeGraphImporter(Path(args.vault), Path(args.gitnexus_root))
         try:
             written = importer.import_graph()
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         for note in written:
             print(note)
         return 0
     return 2
+
+
+def _build_reflector(args: argparse.Namespace) -> ReflectionEngine | None:
+    if args.reflector == "llm":
+        return LLMReflector(
+            endpoint=args.llm_endpoint,
+            model=args.llm_model,
+            timeout=args.llm_timeout,
+        )
+    return None
 
 
 if __name__ == "__main__":

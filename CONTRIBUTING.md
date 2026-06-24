@@ -1,210 +1,151 @@
 # Contributing to TrustLayer
 
-Thanks for your interest. TrustLayer is the open governance,
-observability, and trust layer for multi-agent AI systems — a protocol
-first, a codebase second. Contributions that strengthen the protocol
-itself (the wire format, the policy language, the guardian behaviour)
-are especially welcome.
+TrustLayer is an open architectural standard and protocol for transparent,
+reliable, and traceable agentic AI governance. We welcome contributions
+that advance the protocol specification, reference implementations, SDKs,
+and tooling.
 
-This guide is the operational counterpart to `CLAUDE.md`. `CLAUDE.md`
-tells coding agents *how* to work inside the repo; this document tells
-humans *what* changes are accepted and how to propose them.
+## Project principles
 
----
+1. **The wire format is the contract.** `spec/v0.1/` is the
+   normative protocol definition; `docs/SCHEMA.md` is the implementation
+   mirror. Every schema change must be mirrored in Python (Pydantic),
+   TypeScript (Zod), Go, and Rust in the same commit.
 
-## The wire format is the contract
+2. **Tests are the contract for shipped behavior.** New behavior gets a
+   new test. Refactors keep existing tests green.
 
-`docs/SCHEMA.md` is the canonical wire format. **Every SDK mirrors it
-byte-for-byte.** The Python (`pydantic`), TypeScript (`zod`), and Rust
-(`serde`) representations are kept in lock-step on purpose — a trace
-event written by any SDK must round-trip through any other.
+3. **Instrumentation must never take down the host agent.** Emit
+   failures are logged and swallowed everywhere. The guardian is
+   fail-open by default.
 
-When you change the schema:
+4. **ADRs are append-only.** When introducing a new architectural
+   decision, write an ADR in `obsidian_vault/01_Architecture/` before
+   merging the code.
 
-1. Update `docs/SCHEMA.md` first. The change is not real until it lives
-   in the spec.
-2. Update the three SDK mirrors in the same PR:
-   - `sdks/python/src/trustlayer/schema.py`
-   - `sdks/typescript/src/schema.ts`
-   - `core-rs/src/schema.rs`
-3. Add a cross-language test in `core-rs/tests/cross_language.rs` that
-   parses a fixture produced by the Python (or TS) SDK.
-4. Bump versions per `docs/VERSIONING.md`.
+## Repository layout
 
-A PR that touches one mirror but not the others will be sent back.
-
----
-
-## Architectural decisions
-
-Non-trivial changes — new event types, new layers, new transports, new
-storage backends, license-sensitive dependencies — require an ADR.
-
-- ADRs live in `obsidian_vault/01_Architecture/`.
-- They are append-only. Once accepted, you don't edit; you supersede
-  with a new ADR.
-- File name format: `ADR-NNN-<kebab-case-title>.md`. The next number is
-  whatever follows the latest ADR currently on `main`.
-- Required sections: **Context**, **Decision**, **Consequences**, and
-  (where it matters) **Alternatives considered**.
-
-Write the ADR *before* the code, not after. PRs that introduce
-architectural change without an ADR will block on a request for one.
-
----
-
-## Adding a new SDK
-
-The wire format is intentionally minimal so new SDKs are tractable. To
-contribute one:
-
-1. Open an ADR proposing the language and the dependency set.
-2. Implement the schema as **strict** types (Pydantic v2, Zod, serde
-   with `deny_unknown_fields`, Go struct tags + `DisallowUnknownFields`,
-   etc.). Unknown fields must fail loudly during development; we'll
-   relax that with a versioning story later.
-3. Implement at least: `Tracer` (context-managed `tool_call` /
-   `instrument_tool`-equivalent), `GuardianClient` (HTTP, fail-open,
-   strict verdict validation), and a `Tracer.check()` helper that emits
-   a `TOOL_CALL` + the guardian's `POLICY_CHECK` under one `trace_id`.
-4. Mirror the Python SDK's test layout: schema tests, transport tests
-   (with a fake HTTP client), tracer integration tests, guardian client
-   tests (including the fail-open path).
-5. Add a runnable example that mirrors
-   `sdks/python/examples/end_to_end_demo.py`.
-
-The Python and TypeScript SDKs are the reference implementations. When
-in doubt, match their behaviour.
-
----
-
-## Per-layer commands
-
-You should be able to run every test suite locally before pushing. CI
-runs the same commands.
-
-### Rust core (`core-rs/`)
-```bash
-cd core-rs
-cargo fmt -- --check
-cargo clippy --features server -- -D warnings
-cargo test --features server
+```
+trustlayer/
+├── core-rs/              Rust core + trace-store sidecar
+├── sdks/python/          Python SDK (trustlayer-sdk)
+├── sdks/typescript/      TypeScript SDK (@trustlayer/sdk)
+├── skills/hermes/        Hermes memory subagent
+├── mcp-server/           MCP bridge (FastMCP stdio)
+├── dashboard/            React + Vite observability UI
+├── spec/                 Versioned, normative protocol specification
+├── obsidian_vault/       ADRs, memory traces, reflections
+└── docs/                 SCHEMA mirror, ARCHITECTURE, VERSIONING, STATUS
 ```
 
-The `--features server` flag is required — the HTTP sidecar and the
-trace-store integration tests live behind it.
+## Development setup
 
-### Python SDK (`sdks/python/`)
+### Prerequisites
+- Python 3.11+
+- Node.js 20+
+- Rust 1.75+
+- Go 1.22+
+- (Optional) GitNexus for code-graph generation
+
+### Quickstart
 ```bash
-cd sdks/python
-pip install -e .[dev]
-pytest
+# Clone and install all layers
+git clone https://github.com/trustlayer/trustlayer.git
+cd trustlayer
+
+# Python SDK + Hermes
+cd sdks/python && pip install -e .[dev] && cd ../..
+cd skills/hermes && pip install -e ../../sdks/python
+
+# TypeScript SDK
+cd sdks/typescript && npm install && cd ../..
+
+# Go SDK
+cd sdks/go && go mod tidy && cd ../..
+
+# Rust core
+cd core-rs && cargo build --features server && cd ..
+
+# MCP server
+cd mcp-server && python3 -m venv .venv && \
+  .venv/bin/pip install -e ../sdks/python -e .[dev] && cd ..
+
+# Dashboard
+cd dashboard && npm install && cd ..
 ```
 
-The `[dev]` extra pulls in `pytest`, `mypy`, `ruff`, plus the OTel SDK
-that the `trustlayer.otel` exporter tests exercise (ADR-012). End
-users who only want the bridge install the public extra:
-`pip install trustlayer-sdk[otel]`.
-
-### Hermes (`skills/hermes/`)
+### Running tests
 ```bash
-cd skills/hermes
-pip install -e ../../sdks/python   # Hermes depends on trustlayer-sdk
-pytest
+# Python SDK
+cd sdks/python && pytest
+
+# Hermes
+cd skills/hermes && pytest
+
+# TypeScript SDK
+cd sdks/typescript && npm test
+
+# Rust core
+cd core-rs && cargo test --features server
+
+# MCP server
+cd mcp-server && PYTHONPATH=src:../sdks/python/src:../skills .venv/bin/python -m pytest
+
+# Dashboard
+cd dashboard && npm test
+
+# Go SDK
+cd sdks/go && go vet ./... && go test ./... -race
 ```
 
-### MCP server (`mcp-server/`)
-```bash
-cd mcp-server
-python -m venv .venv
-.venv/bin/pip install -e ../sdks/python -e .[dev]
-PYTHONPATH=src:../sdks/python/src:../skills .venv/bin/python -m pytest
-```
+## Making changes
 
-### TypeScript SDK (`sdks/typescript/`)
-```bash
-cd sdks/typescript
-npm install
-npm run typecheck
-npm test
-```
+### Schema changes
+1. Propose the change in a GitHub issue first.
+2. Update `spec/v0.1/` — this is the normative wire-format spec.
+3. Update `docs/SCHEMA.md` — this is the implementation mirror.
+4. Update `sdks/python/src/trustlayer/schema.py`.
+5. Update `sdks/typescript/src/schema.ts`.
+6. Update `sdks/go/trustlayer/schema.go`.
+7. Update `core-rs/src/schema.rs`.
+8. Add/update cross-language round-trip tests and fixtures.
 
-### Go SDK (`sdks/go/`)
-```bash
-cd sdks/go
-go vet ./...
-go test ./...
-go build ./examples/...
-```
+### Adding a new SDK
+1. Implement the `AgentTraceEvent` envelope in the target language.
+2. Implement `Tracer` + `GuardianClient` with fail-open semantics.
+3. Add cross-language tests against the Python SDK's JSON output.
+4. Register the SDK in `docs/CURRENT_STATUS.md`.
 
-Requires Go 1.22+. Dependencies are stdlib + `github.com/google/uuid`
-only; no test framework beyond `testing` + `httptest`. Conformance
-fixtures live at `spec/v0.1/fixtures/` — the Go-emitted fixture is
-regenerated by `go run ./examples/conformance`.
+### Policy contributions
+New default policies (`core-rs/policies/`) should:
+- Be named descriptively (`financial-services.json`, `healthcare.json`).
+- Include comments explaining each rule's rationale.
+- Be accompanied by a test in `core-rs/src/policy.rs` or
+  `core-rs/src/guardian.rs` that exercises the policy against sample
+  events.
 
-### Dashboard (`dashboard/`)
-```bash
-cd dashboard
-npm install
-npm run typecheck
-npm test
-npm run build
-```
+## Code style
 
----
+- **Rust** — `cargo fmt` + `cargo clippy` (no warnings). No `unwrap()`
+  on production paths.
+- **Python** — `ruff` + `mypy --strict`. Pydantic v2.
+  `from __future__ import annotations` in every module.
+- **TypeScript** — strict mode, `noUncheckedIndexedAccess`. No `any`
+  on public API surfaces.
+- **Markdown** — valid YAML frontmatter on all vault notes.
 
-## Style
+## Pull request checklist
 
-- **Rust** — `cargo fmt` + `cargo clippy -- -D warnings`. No `unwrap()`
-  on production paths; reserve it for tests and `static` initialisers
-  whose values cannot fail.
-- **Python** — 3.11+, Pydantic v2, type hints everywhere,
-  `from __future__ import annotations` at the top of every module.
-  `ruff` for lint where configured.
-- **TypeScript** — strict mode, `noUncheckedIndexedAccess`, exported
-  interfaces clearly named. No `any` without a comment explaining why.
-
----
-
-## Tests are the contract for shipped behaviour
-
-- New behaviour ships with at least one new test.
-- Refactors keep the existing tests green; they don't rewrite them to
-  match the new code.
-- Instrumentation must never take down the host agent. Transport errors
-  in the SDKs are logged and swallowed; if you add a new emit path, it
-  must follow the same rule and you must add a test that proves it.
-
----
-
-## Pull-request workflow
-
-1. Open an issue or a draft PR with the proposed change.
-2. If the change touches the schema or the architecture, link the ADR.
-3. Run the full local matrix (see "Per-layer commands"). CI runs the
-   same matrix; failing CI is not a path to merge.
-4. PR descriptions should include: what shipped, the test counts that
-   changed, and (if relevant) the curl smoke / browser smoke you used
-   to verify behaviour the tests can't see.
-5. Squash-merge by default. The first line of the squash message
-   should match the commit-message style already in the history
-   (terse imperative, optional body explaining "why").
-
----
-
-## Reporting issues
-
-- Bugs in the wire format, the policy engine, or the trace-store API
-  should include a minimal reproduction and the relevant
-  `AgentTraceEvent` JSON.
-- Bugs in the SDKs should include the language, version, and the
-  smallest possible repro script.
-- Security-sensitive issues — please do not open a public issue; reach
-  out via the contact listed on the project's GitHub profile.
-
----
+- [ ] Tests pass in all modified layers
+- [ ] New behavior has test coverage
+- [ ] Schema changes are mirrored across all language implementations
+- [ ] Architectural changes have an ADR
+- [ ] `docs/CURRENT_STATUS.md` is updated
+- [ ] Build succeeds (`cargo build`, `tsc`, etc.)
+- [ ] Lint is clean (`cargo clippy`, `ruff`, `tsc --noEmit`)
+- [ ] Signed-off commits (`git commit -s`)
 
 ## License
 
 By contributing, you agree that your contributions will be licensed
-under the [Apache License, Version 2.0](./LICENSE). No CLA is required.
+under the Apache License 2.0.
