@@ -6,6 +6,40 @@ implementations are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added (Phase 6 — Production hardening, ADR-015)
+- **Pluggable trace store.** New object-safe `TraceStore` trait; the HTTP
+  sidecar now holds `Arc<dyn TraceStore>` so the same routes serve any
+  backend. No wire-format or HTTP-API change.
+- **Postgres backend** (`postgres` build feature). Durable, horizontally
+  scalable: run N stateless guardian replicas against one database
+  (`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up
+  --scale guardian=3`). Schema auto-created on connect;
+  `core-rs/migrations/0001_trace_events.sql` documents the DDL. Selected at
+  runtime with `TRUSTLAYER_DATABASE_URL`. Verified end-to-end against a live
+  Postgres (append/dedup/filter/limit/sessions/get-session).
+- **JSONL retention.** `TRUSTLAYER_EVENT_RETENTION_MAX` caps the log and
+  compacts the file on overflow (amortised O(1) appends). Unset = unbounded
+  (unchanged default).
+- **Secure-by-default bind guard.** The guardian refuses to start on a
+  non-loopback address without `TRUSTLAYER_API_TOKEN`, unless
+  `TRUSTLAYER_ALLOW_INSECURE=true`. Loopback dev stays zero-config.
+- `docs/SCALING.md` — operator guide for backend choice, replicas, retention,
+  and the security checklist.
+
+### Changed
+- Docker image builds with `--features server,postgres` by default (one image
+  serves either backend); override with `--build-arg FEATURES=server`.
+- `.gitignore` now covers the default `events.jsonl` runtime log.
+
+### Tests
+- Rust: **88** default (+2 JSONL retention) and **+3** opt-in Postgres
+  integration tests (`TRUSTLAYER_TEST_DATABASE_URL`), all green. `cargo fmt`
+  + `clippy -D warnings` clean for both `server` and `server,postgres`.
+- Dashboard visually verified end-to-end against the live API (Playwright):
+  all four panes render real data, zero console errors.
+
 ## [0.1.0] — 2026-05-30
 
 ### Added (Phase 1 — Specifications & Scaffolding)

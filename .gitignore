@@ -38,3 +38,7 @@ Thumbs.db
 obsidian_vault/.hermes_state/
 .gitnexus/
 examples/.demo_traces.jsonl
+# Default JSONL trace-store log written when running the guardian from core-rs/.
+events.jsonl
+*.jsonl.compacting
+core-rs/events.jsonl

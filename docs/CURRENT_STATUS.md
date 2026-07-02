@@ -1,7 +1,24 @@
 # Current Status
 
-**Phase:** Phase 6 — Slice 4f closed (docker-compose + release checklist + LLM reflector + pyo3 FFI)
+**Phase:** Phase 6 — Slice 5 closed (pluggable trace store + Postgres backend, retention, secure bind, dashboard visual verification)
 **Overall Status:** GREEN
+
+## 📝 Latest — Phase 6 Slice 5 (Production hardening, ADR-015)
+Closed the three production-readiness limits called out in the release audit:
+- **Single-node → horizontally scalable.** New `TraceStore` trait + `PostgresStore`
+  backend (`postgres` feature). Router now holds `Arc<dyn TraceStore>`; JSONL stays
+  the zero-config default. Postgres verified end-to-end against a live DB and via the
+  guardian binary (rows confirmed in `trace_events`). `docker-compose.postgres.yml`
+  overlay scales guardian replicas against one DB. **No wire-format/API change.**
+- **No retention → bounded.** `TRUSTLAYER_EVENT_RETENTION_MAX` caps + compacts JSONL.
+- **Auth open by default → secure bind guard.** Guardian refuses non-loopback binds
+  without a token (override `TRUSTLAYER_ALLOW_INSECURE=true`).
+- **Dashboard visually verified** (Playwright, live API): all four panes render real
+  data, color-coded verdicts, zero console errors — closes the long-standing
+  "no in-browser check" gap.
+- Hygiene: `events.jsonl` gitignored. ADR-015 + `docs/SCALING.md` added.
+- Tests: Rust **88** default (+2 retention) + **3** opt-in Postgres integration; fmt +
+  clippy clean for `server` and `server,postgres`. Full matrix green.
 
 ## 📋 Roadmap & Task List
 

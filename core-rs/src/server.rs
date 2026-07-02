@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::auth::require_token;
-use crate::events::{EventFilter, EventStore};
+use crate::events::{EventFilter, TraceStore};
 use crate::guardian::{CynepicGuardian, Verdict};
 use crate::metrics::{track_requests, ServerMetrics};
 use crate::rate_limit::{rate_limit, IngestRateLimit};
@@ -27,7 +27,10 @@ use crate::schema::{AgentTraceEvent, EventType};
 #[derive(Clone)]
 pub struct AppState {
     pub guardian: Arc<CynepicGuardian>,
-    pub events: Arc<EventStore>,
+    /// Trace store backend — JSONL [`EventStore`](crate::events::EventStore) by
+    /// default, or [`PostgresStore`](crate::pg_store::PostgresStore) when built
+    /// with the `postgres` feature and given a `TRUSTLAYER_DATABASE_URL`.
+    pub events: Arc<dyn TraceStore>,
     /// Obsidian vault root — reflection notes live under `05_Reflections/`.
     pub vault_path: Arc<PathBuf>,
     /// Optional shared bearer token (ADR-007). `None` = open; `Some(_)` =
@@ -134,7 +137,7 @@ async fn ingest_handler(
         EventBody::Single(e) => vec![*e],
         EventBody::Batch(v) => v,
     };
-    match state.events.append_batch(events) {
+    match state.events.append_batch(events).await {
         Ok(stored) => {
             state.metrics.events_ingested_total.inc_by(stored as u64);
             (StatusCode::OK, Json(IngestResponse { stored })).into_response()
@@ -166,21 +169,36 @@ async fn list_events_handler(
         event_type: q.event_type,
         limit: q.limit,
     };
-    let events = state.events.list_events(&filter);
-    (StatusCode::OK, Json(events))
+    match state.events.list_events(&filter).await {
+        Ok(events) => (StatusCode::OK, Json(events)).into_response(),
+        Err(err) => store_error(err),
+    }
 }
 
 async fn list_sessions_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let sessions = state.events.list_sessions();
-    (StatusCode::OK, Json(sessions))
+    match state.events.list_sessions().await {
+        Ok(sessions) => (StatusCode::OK, Json(sessions)).into_response(),
+        Err(err) => store_error(err),
+    }
 }
 
 async fn get_session_handler(
     State(state): State<AppState>,
     Path((agent_id, session_id)): Path<(String, String)>,
 ) -> impl IntoResponse {
-    let events = state.events.get_session(&agent_id, &session_id);
-    (StatusCode::OK, Json(events))
+    match state.events.get_session(&agent_id, &session_id).await {
+        Ok(events) => (StatusCode::OK, Json(events)).into_response(),
+        Err(err) => store_error(err),
+    }
+}
+
+/// Map a trace-store backend failure to a 500 with a JSON error body.
+fn store_error(err: crate::error::Error) -> axum::response::Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": err.to_string()})),
+    )
+        .into_response()
 }
 
 async fn list_reflections_handler(State(state): State<AppState>) -> impl IntoResponse {

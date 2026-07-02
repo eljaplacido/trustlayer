@@ -28,8 +28,16 @@ services:
       TRUSTLAYER_POLICY: /etc/trustlayer/policy.json
       TRUSTLAYER_POLICY_RELOAD: "${TRUSTLAYER_POLICY_RELOAD:-true}"
       TRUSTLAYER_EVENTS_PATH: /data/events.jsonl
+      TRUSTLAYER_EVENT_RETENTION_MAX: "${TRUSTLAYER_EVENT_RETENTION_MAX:-}"
       TRUSTLAYER_VAULT_PATH: /data/vault
       TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
+      # The container binds 0.0.0.0 but the host port maps to loopback by
+      # default (see `ports` above), so allow the open-auth dev default here.
+      # PRODUCTION: set TRUSTLAYER_API_TOKEN and remove this override.
+      TRUSTLAYER_ALLOW_INSECURE: "${TRUSTLAYER_ALLOW_INSECURE:-true}"
+      # Set to a postgres:// URL (and run with the postgres override file) to use
+      # the durable Postgres backend instead of JSONL. Empty = JSONL.
+      TRUSTLAYER_DATABASE_URL: "${TRUSTLAYER_DATABASE_URL:-}"
       TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC: "${TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC:-}"
       RUST_LOG: "${RUST_LOG:-info}"
     volumes:

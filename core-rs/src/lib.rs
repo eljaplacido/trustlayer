@@ -15,6 +15,8 @@ pub mod ffi;
 pub mod guardian;
 #[cfg(feature = "server")]
 pub mod metrics;
+#[cfg(feature = "postgres")]
+pub mod pg_store;
 pub mod policy;
 #[cfg(feature = "server")]
 pub mod policy_watch;
@@ -26,10 +28,12 @@ pub mod schema;
 pub mod server;
 
 pub use error::{Error, Result};
-pub use events::{EventFilter, EventStore, SessionSummary};
+pub use events::{EventFilter, EventStore, SessionSummary, TraceStore};
 pub use guardian::{CynepicGuardian, Verdict};
 #[cfg(feature = "server")]
 pub use metrics::ServerMetrics;
+#[cfg(feature = "postgres")]
+pub use pg_store::PostgresStore;
 pub use policy::{MatchSpec, Policy, PolicyRule};
 #[cfg(feature = "server")]
 pub use rate_limit::IngestRateLimit;

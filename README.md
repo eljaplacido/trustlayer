@@ -544,27 +544,39 @@ export TRUSTLAYER_API_TOKEN=…   # same token, on every agent host
 The SDKs (Python, TypeScript, Go) read this env var by default; you
 don't need to thread it through the client constructor.
 
-### Docker (sketch)
+> **Secure by default:** the guardian refuses to bind a non-loopback
+> address without `TRUSTLAYER_API_TOKEN`. Set a token, or (behind your own
+> mTLS/proxy) opt out with `TRUSTLAYER_ALLOW_INSECURE=true`.
 
-A minimal `Dockerfile` for the sidecar:
+### Docker Compose
 
-```dockerfile
-FROM rust:1.94 AS build
-WORKDIR /src
-COPY core-rs /src/core-rs
-RUN cd core-rs && cargo build --release --features server --bin trustlayer-guardian
+The repo ships a ready `Dockerfile` + `docker-compose.yml` (guardian +
+dashboard, with an optional Hermes profile):
 
-FROM debian:bookworm-slim
-COPY --from=build /src/core-rs/target/release/trustlayer-guardian /usr/local/bin/
-COPY core-rs/policies/default.json /etc/trustlayer/policy.json
-ENV TRUSTLAYER_POLICY=/etc/trustlayer/policy.json \
-    TRUSTLAYER_BIND=0.0.0.0:8089
-EXPOSE 8089
-CMD ["trustlayer-guardian"]
+```bash
+docker compose up            # guardian :8089, dashboard :5173
 ```
 
-A `docker-compose.yml` is on the roadmap and will land alongside the
-v0.1 publication.
+### Scaling: JSONL vs Postgres
+
+Two trace-store backends sit behind one HTTP contract
+([ADR-015](obsidian_vault/01_Architecture/ADR-015-Pluggable-Trace-Store-Postgres.md)) —
+choose with env vars, not code:
+
+| Backend | When | How |
+|---|---|---|
+| **JSONL** (default) | dev, demos, single node | nothing to configure; cap with `TRUSTLAYER_EVENT_RETENTION_MAX` |
+| **Postgres** | production, HA, high volume | build `--features server,postgres`, set `TRUSTLAYER_DATABASE_URL` |
+
+Run multiple stateless guardian replicas against one database:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+  up --scale guardian=3
+```
+
+The Postgres schema is created automatically on connect. Full deployment,
+retention, and security guidance: [`docs/SCALING.md`](docs/SCALING.md).
 
 ### Hot-reload a policy in production
 
@@ -766,8 +778,12 @@ Implementation mirror (developer-friendly view of the same wire format):
 | `TRUSTLAYER_POLICY` | `./policies/default.json` | Policy file. |
 | `TRUSTLAYER_POLICY_RELOAD` | `true` | `false` disables the file watcher. |
 | `TRUSTLAYER_EVENTS_PATH` | `./events.jsonl` | JSONL trace store. `""` = in-memory only. |
+| `TRUSTLAYER_EVENT_RETENTION_MAX` | _(unset)_ | Cap JSONL to ~N most-recent events (oldest evicted + file compacted). Unset = unbounded. |
+| `TRUSTLAYER_DATABASE_URL` | _(unset)_ | `postgres://…` DSN → use the Postgres backend (needs `--features server,postgres`). Empty = JSONL. |
+| `TRUSTLAYER_DB_MAX_CONNECTIONS` | `10` | Postgres pool size per process. |
 | `TRUSTLAYER_VAULT_PATH` | `./obsidian_vault` | Vault root for `/v1/reflections`. |
 | `TRUSTLAYER_API_TOKEN` | _(unset)_ | When set, every route except `/healthz` and `/metrics` requires `Authorization: Bearer <token>`. |
+| `TRUSTLAYER_ALLOW_INSECURE` | `false` | Allow binding a non-loopback address with no token. Off by default (the guardian refuses such binds). |
 | `TRUSTLAYER_INGEST_RATE_LIMIT_PER_SEC` | _(unset)_ | `POST /v1/events` rate limit per second. Unset / `0` = unlimited. |
 | `RUST_LOG` | `info` | Tracing filter. |
 

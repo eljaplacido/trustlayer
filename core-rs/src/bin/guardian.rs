@@ -36,6 +36,7 @@ use tracing_subscriber::EnvFilter;
 use trustlayer_core::policy_watch::spawn_watcher;
 use trustlayer_core::{
     build_router, AppState, CynepicGuardian, EventStore, IngestRateLimit, Policy, ServerMetrics,
+    TraceStore,
 };
 
 #[tokio::main]
@@ -60,21 +61,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         policy_path.display()
     );
 
-    let events_store = match std::env::var("TRUSTLAYER_EVENTS_PATH") {
-        Ok(s) if s.is_empty() => {
-            info!("Event store: in-memory (TRUSTLAYER_EVENTS_PATH=\"\")");
-            EventStore::in_memory()
+    // Retention cap for the JSONL backend (Postgres relies on DB-side
+    // retention / partitioning). Unset = unbounded.
+    let retention = std::env::var("TRUSTLAYER_EVENT_RETENTION_MAX")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .filter(|n| *n > 0);
+
+    // Backend selection: a non-empty TRUSTLAYER_DATABASE_URL chooses Postgres
+    // (requires the `postgres` build feature); otherwise JSONL / in-memory.
+    let pg_dsn = std::env::var("TRUSTLAYER_DATABASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty());
+
+    let events: Arc<dyn TraceStore> = if let Some(dsn) = pg_dsn {
+        #[cfg(feature = "postgres")]
+        {
+            let pool_max = std::env::var("TRUSTLAYER_DB_MAX_CONNECTIONS")
+                .ok()
+                .and_then(|s| s.parse::<u32>().ok());
+            info!(
+                "Event store: Postgres (TRUSTLAYER_DATABASE_URL set, max_connections={})",
+                pool_max.unwrap_or(10)
+            );
+            Arc::new(trustlayer_core::PostgresStore::connect(&dsn, pool_max).await?)
         }
-        Ok(s) => {
-            let p = PathBuf::from(s);
-            info!("Event store: JSONL at {}", p.display());
-            EventStore::open_jsonl(&p)?
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = dsn;
+            return Err("TRUSTLAYER_DATABASE_URL is set but this binary was built \
+                 without the `postgres` feature. Rebuild with \
+                 `cargo build --release --features server,postgres`."
+                .into());
         }
-        Err(_) => {
-            let p = PathBuf::from("events.jsonl");
-            info!("Event store: JSONL at {} (default)", p.display());
-            EventStore::open_jsonl(&p)?
+    } else {
+        let store = match std::env::var("TRUSTLAYER_EVENTS_PATH") {
+            Ok(s) if s.is_empty() => {
+                info!("Event store: in-memory (TRUSTLAYER_EVENTS_PATH=\"\")");
+                EventStore::in_memory()
+            }
+            Ok(s) => {
+                let p = PathBuf::from(s);
+                info!("Event store: JSONL at {}", p.display());
+                EventStore::open_jsonl(&p)?
+            }
+            Err(_) => {
+                let p = PathBuf::from("events.jsonl");
+                info!("Event store: JSONL at {} (default)", p.display());
+                EventStore::open_jsonl(&p)?
+            }
+        };
+        match retention {
+            Some(n) => info!("Event retention: keep ~{n} most-recent events (JSONL)"),
+            None => info!("Event retention: unbounded"),
         }
+        Arc::new(store.with_retention(retention))
     };
 
     let vault_path = std::env::var("TRUSTLAYER_VAULT_PATH")
@@ -88,10 +129,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Arc::new(s))
         }
         _ => {
-            warn!("Auth: open — TRUSTLAYER_API_TOKEN not set. Loopback only.");
+            warn!("Auth: open — TRUSTLAYER_API_TOKEN not set.");
             None
         }
     };
+    let auth_enabled = api_token.is_some();
 
     let guardian = Arc::new(CynepicGuardian::new(policy));
 
@@ -115,7 +157,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState {
         guardian,
-        events: Arc::new(events_store),
+        events,
         vault_path: Arc::new(vault_path),
         api_token,
         metrics: Arc::new(ServerMetrics::new()),
@@ -127,6 +169,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind: SocketAddr = std::env::var("TRUSTLAYER_BIND")
         .unwrap_or_else(|_| "127.0.0.1:8089".to_string())
         .parse()?;
+
+    // Refuse to expose an unauthenticated server on a non-loopback interface.
+    // Without a token, anyone who can reach the port can read every trace and
+    // adjudicate against any policy. Set TRUSTLAYER_API_TOKEN, or explicitly
+    // opt out with TRUSTLAYER_ALLOW_INSECURE=true (e.g. behind your own mTLS
+    // proxy or an isolated network).
+    let allow_insecure = std::env::var("TRUSTLAYER_ALLOW_INSECURE")
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if !auth_enabled && !bind.ip().is_loopback() && !allow_insecure {
+        return Err(format!(
+            "refusing to bind {bind}: no TRUSTLAYER_API_TOKEN set and the address is \
+             not loopback. Set a token to require auth, or set \
+             TRUSTLAYER_ALLOW_INSECURE=true to override."
+        )
+        .into());
+    }
+    if !auth_enabled && bind.ip().is_loopback() {
+        warn!("Auth open — bound to loopback {bind}; safe for local dev only.");
+    }
 
     let listener = TcpListener::bind(bind).await?;
     info!("trustlayer-guardian listening on http://{bind}");

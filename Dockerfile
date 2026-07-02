@@ -8,8 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 COPY core-rs /src/core-rs
 
+# Feature set baked into the binary. Default includes `postgres` so the same
+# image works for the JSONL default (no DSN) and Postgres (TRUSTLAYER_DATABASE_URL
+# set). Override with `--build-arg FEATURES=server` for a slimmer JSONL-only image.
+ARG FEATURES=server,postgres
+
 RUN cd core-rs && \
-    cargo build --release --features server --bin trustlayer-guardian && \
+    cargo build --release --features "${FEATURES}" --bin trustlayer-guardian && \
     cp target/release/trustlayer-guardian /usr/local/bin/
 
 # ── Runtime stage ───────────────────────────────────────────────────────────

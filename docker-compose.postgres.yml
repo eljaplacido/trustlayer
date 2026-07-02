@@ -1,0 +1,39 @@
+# TrustLayer — Postgres trace-store backend (ADR-015).
+#
+# Overlay on top of the base compose file to swap the JSONL store for a durable,
+# horizontally-scalable Postgres backend. The guardian image already ships with
+# the `postgres` build feature, so no rebuild is needed.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up
+#
+# Run multiple guardian replicas behind a load balancer against the same DB:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml \
+#     up --scale guardian=3
+#
+# Production: change POSTGRES_PASSWORD and set TRUSTLAYER_API_TOKEN.
+
+services:
+  guardian:
+    environment:
+      TRUSTLAYER_DATABASE_URL: "postgres://trustlayer:trustlayer@postgres:5432/trustlayer"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-trustlayer}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-trustlayer}"
+      POSTGRES_DB: "${POSTGRES_DB:-trustlayer}"
+    volumes:
+      - trustlayer_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trustlayer}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  trustlayer_pgdata:

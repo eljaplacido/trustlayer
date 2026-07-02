@@ -23,12 +23,39 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use async_trait::async_trait;
 use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::schema::{AgentTraceEvent, EventType};
 
 type SessionKey = (String, String);
+
+/// Storage backend for the trace store.
+///
+/// The HTTP sidecar holds an `Arc<dyn TraceStore>` so the same routes serve
+/// any backend. Two implementations ship in-tree:
+///
+/// * [`EventStore`] — in-memory + append-only JSONL (default; single-node).
+/// * `PostgresStore` — durable, horizontally-scalable (feature `postgres`).
+///
+/// Query methods return [`Result`] because remote backends can fail mid-call;
+/// the JSONL backend never errors on reads but conforms to the same contract.
+#[async_trait]
+pub trait TraceStore: Send + Sync {
+    /// Append a batch. Returns the count of newly-stored (non-duplicate) events.
+    /// Idempotent on `trace_id`.
+    async fn append_batch(&self, events: Vec<AgentTraceEvent>) -> Result<usize>;
+
+    /// Events matching the filter, chronological. `limit` selects the tail.
+    async fn list_events(&self, filter: &EventFilter) -> Result<Vec<AgentTraceEvent>>;
+
+    /// One summary per `(agent_id, session_id)`, most-recent first.
+    async fn list_sessions(&self) -> Result<Vec<SessionSummary>>;
+
+    /// All events for one session, in insertion order.
+    async fn get_session(&self, agent_id: &str, session_id: &str) -> Result<Vec<AgentTraceEvent>>;
+}
 
 /// Filters accepted by [`EventStore::list_events`].
 #[derive(Debug, Default, Clone)]
@@ -60,6 +87,11 @@ struct Inner {
 pub struct EventStore {
     inner: Mutex<Inner>,
     path: Option<PathBuf>,
+    /// Optional cap on retained events. `None` = unbounded (default). When set,
+    /// the oldest events are evicted (and the JSONL file compacted) once the
+    /// in-memory log grows past the cap plus a slack window, so steady-state
+    /// appends stay amortised O(1). See [`EventStore::with_retention`].
+    retention: Option<usize>,
 }
 
 impl EventStore {
@@ -73,7 +105,17 @@ impl EventStore {
                 file: None,
             }),
             path: None,
+            retention: None,
         }
+    }
+
+    /// Cap the number of retained events. `Some(n)` keeps roughly the most
+    /// recent `n`; `None` is unbounded. For high-volume / production workloads
+    /// prefer the `postgres` backend — JSONL retention is best-effort
+    /// (compaction rewrites the file on overflow). See `docs/SCALING.md`.
+    pub fn with_retention(mut self, max_events: Option<usize>) -> Self {
+        self.retention = max_events.filter(|n| *n > 0);
+        self
     }
 
     /// Open (or create) an append-only JSONL log and replay existing lines
@@ -108,6 +150,7 @@ impl EventStore {
         Ok(Self {
             inner: Mutex::new(inner),
             path: Some(path),
+            retention: None,
         })
     }
 
@@ -129,7 +172,54 @@ impl EventStore {
             file.flush()?;
         }
         Self::index_existing(&mut inner, event);
+        self.enforce_retention(&mut inner)?;
         Ok(true)
+    }
+
+    /// Evict the oldest events once the log overruns the retention cap.
+    ///
+    /// Triggered lazily — only past `max + max/4` — so the O(n) index rebuild
+    /// and (for file-backed stores) file compaction amortise to O(1) per
+    /// append in steady state. No-op when retention is unset.
+    fn enforce_retention(&self, inner: &mut Inner) -> Result<()> {
+        let Some(max) = self.retention else {
+            return Ok(());
+        };
+        let slack = (max / 4).max(1);
+        if inner.events.len() <= max + slack {
+            return Ok(());
+        }
+        let drop = inner.events.len() - max;
+        inner.events.drain(0..drop);
+
+        // Indices are positional, so a front-drain invalidates them all.
+        inner.by_trace.clear();
+        inner.by_session.clear();
+        for (idx, ev) in inner.events.iter().enumerate() {
+            inner.by_trace.insert(ev.trace_id, idx);
+            inner
+                .by_session
+                .entry((ev.agent_id.clone(), ev.session_id.clone()))
+                .or_default()
+                .push(idx);
+        }
+
+        // Compact the JSONL file to match the retained window (write-then-rename
+        // so a crash mid-compaction never leaves a truncated log).
+        if let Some(path) = self.path.as_ref() {
+            let tmp = path.with_extension("jsonl.compacting");
+            {
+                let mut f = File::create(&tmp)?;
+                for ev in &inner.events {
+                    let line = serde_json::to_string(ev).map_err(Error::InvalidEvent)?;
+                    writeln!(f, "{line}")?;
+                }
+                f.flush()?;
+            }
+            std::fs::rename(&tmp, path)?;
+            inner.file = Some(OpenOptions::new().create(true).append(true).open(path)?);
+        }
+        Ok(())
     }
 
     /// Append a batch. Returns the count of newly-stored (non-duplicate) events.
@@ -218,6 +308,28 @@ impl EventStore {
         inner.events.push(event);
         inner.by_trace.insert(trace_id, idx);
         inner.by_session.entry(key).or_default().push(idx);
+    }
+}
+
+/// The JSONL/in-memory backend satisfies the same async contract as remote
+/// backends; its methods complete synchronously (local file I/O is sub-100µs)
+/// and never error on reads.
+#[async_trait]
+impl TraceStore for EventStore {
+    async fn append_batch(&self, events: Vec<AgentTraceEvent>) -> Result<usize> {
+        EventStore::append_batch(self, events)
+    }
+
+    async fn list_events(&self, filter: &EventFilter) -> Result<Vec<AgentTraceEvent>> {
+        Ok(EventStore::list_events(self, filter))
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<SessionSummary>> {
+        Ok(EventStore::list_sessions(self))
+    }
+
+    async fn get_session(&self, agent_id: &str, session_id: &str) -> Result<Vec<AgentTraceEvent>> {
+        Ok(EventStore::get_session(self, agent_id, session_id))
     }
 }
 
@@ -446,6 +558,47 @@ mod tests {
             .unwrap();
         assert_eq!(written, 2);
         assert_eq!(store.list_events(&EventFilter::default()).len(), 2);
+    }
+
+    #[test]
+    fn retention_caps_in_memory_log() {
+        let store = EventStore::in_memory().with_retention(Some(4));
+        for i in 0..40u32 {
+            let trace = format!("{i:08x}-0000-4000-8000-000000000000");
+            store.append(sample_event(&trace, "a", "s")).unwrap();
+        }
+        // Bounded to max (4) + slack window (max/4 -> 1) at most; oldest evicted.
+        let all = store.list_events(&EventFilter::default());
+        assert!(all.len() <= 5, "len={}", all.len());
+        assert!(all.len() >= 4);
+        // The most-recent event survives; the very first was evicted.
+        let last = all.last().unwrap();
+        assert_eq!(
+            last.trace_id.to_string(),
+            "00000027-0000-4000-8000-000000000000"
+        );
+        assert!(store
+            .list_events(&EventFilter::default())
+            .iter()
+            .all(|e| e.trace_id.to_string() != "00000000-0000-4000-8000-000000000000"));
+    }
+
+    #[test]
+    fn retention_compacts_jsonl_file() {
+        let tmp = tempdir();
+        let path = tmp.join("events.jsonl");
+        let store = EventStore::open_jsonl(&path)
+            .unwrap()
+            .with_retention(Some(3));
+        for i in 0..30u32 {
+            let trace = format!("{i:08x}-0000-4000-8000-000000000000");
+            store.append(sample_event(&trace, "a", "s")).unwrap();
+        }
+        // Reopening reads the compacted file — proves on-disk retention held.
+        let reopened = EventStore::open_jsonl(&path).unwrap();
+        let on_disk = reopened.list_events(&EventFilter::default());
+        assert!(on_disk.len() <= 3 + 1, "on-disk len={}", on_disk.len());
+        assert!(!path.with_extension("jsonl.compacting").exists());
     }
 
     fn tempdir() -> PathBuf {
