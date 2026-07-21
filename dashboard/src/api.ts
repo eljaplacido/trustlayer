@@ -11,7 +11,7 @@ export interface AgentTraceEvent {
 
 const DEFAULT_BASE = "http://127.0.0.1:8089";
 
-function baseUrl(): string {
+export function baseUrl(): string {
   const fromEnv = import.meta.env.VITE_TRUSTLAYER_BASE_URL as
     | string
     | undefined;
@@ -22,7 +22,7 @@ function baseUrl(): string {
  * ADR-007: bearer token sourced from VITE_TRUSTLAYER_API_TOKEN at build
  * time. Returns undefined when unset so we don't send an empty header.
  */
-function apiToken(): string | undefined {
+export function apiToken(): string | undefined {
   const raw = import.meta.env.VITE_TRUSTLAYER_API_TOKEN as
     | string
     | undefined;

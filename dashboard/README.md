@@ -2,11 +2,11 @@
 
 React + Vite + TypeScript observability UI for TrustLayer. Polls the
 [`trustlayer-guardian`](../core-rs/) sidecar over its public HTTP API
-and renders four live panes: **Traces**, **Sessions**, **Reflections**,
-and **Policy**. Apache-2.0.
+and renders seven live panes: **Overview**, **Metrics**, **Compliance**,
+**Traces**, **Sessions**, **Reflections**, and **Policy**. Apache-2.0.
 
 - **Stack:** React 18 + Vite 5 + TypeScript strict (`noUncheckedIndexedAccess`)
-- **Tests:** 33 vitest cases (14 API client + 19 React Testing Library component tests)
+- **Tests:** 36 vitest cases (14 API client + 22 React Testing Library component tests)
 - **Requires:** Node 20+ for development; the built static bundle has no runtime requirements
 
 See the root [README](../README.md) for the full architecture and
@@ -17,6 +17,9 @@ for the design.
 
 | Pane | What it shows | Endpoint |
 |---|---|---|
+| **Overview** | Real-time KPI cards, event type distribution, and registered agents. | `GET /v1/events?limit=200` + `GET /v1/sessions` |
+| **Metrics** | Guardian Prometheus counters/histograms rendered as dashboard cards and bars. | `GET /metrics` |
+| **Compliance** | Multi-system readiness report generated from system registries. | `GET /compliance-readiness.json` |
 | **Traces** | Live `AgentTraceEvent` stream, most recent first. Refresh every 5 s. | `GET /v1/events?limit=50` |
 | **Sessions** | One row per `(agent_id, session_id)`. Click to drill into the timeline. | `GET /v1/sessions` + `GET /v1/sessions/{agent}/{session}` |
 | **Reflections** | Hermes-generated synthesis notes. Click a date to render the markdown. | `GET /v1/reflections` + `GET /v1/reflections/{name}` |
@@ -38,7 +41,7 @@ npm run build             # outputs dist/
 npm run preview           # serves dist/ for smoke-testing
 
 # Tests
-npm test                  # 33 vitest cases
+npm test                  # 36 vitest cases
 npm run typecheck         # tsc --noEmit, must stay clean
 ```
 
@@ -83,6 +86,9 @@ missing token → `401` and the panes surface a clear error state.
   `fetchReflections`, `fetchReflection`). Shared `getJson<T>` helper
   handles URL construction, the auth header, and HTTP-status mapping
   in one place.
+- [`src/OverviewPane.tsx`](./src/OverviewPane.tsx),
+- [`src/MetricsPane.tsx`](./src/MetricsPane.tsx),
+- [`src/CompliancePane.tsx`](./src/CompliancePane.tsx),
 - [`src/TracesPane.tsx`](./src/TracesPane.tsx),
   [`src/SessionsPane.tsx`](./src/SessionsPane.tsx),
   [`src/ReflectionsPane.tsx`](./src/ReflectionsPane.tsx),
@@ -99,7 +105,7 @@ npm test                  # vitest, 33 cases
 - `tests/api.test.ts` — 14 cases on the API client. Stubs `fetch`,
   verifies URL construction, filter encoding, path escaping, HTTP
   status propagation, bearer-token wiring.
-- `tests/components/*.test.tsx` — 19 React Testing Library cases.
+- `tests/components/*.test.tsx` — 22 React Testing Library cases.
   jsdom environment per-file (`// @vitest-environment jsdom`); the
   api module is mocked via `vi.mock`. Each pane has tests for
   loading, error, empty, loaded, and (where applicable) drill-down

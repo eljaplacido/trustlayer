@@ -1,0 +1,13 @@
+.git
+.github
+.opencode
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/__pycache__
+**/node_modules
+**/target
+compliance/examples
+docs
+obsidian_vault

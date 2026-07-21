@@ -1,3 +1,6 @@
+import { CompliancePane } from "./CompliancePane.js";
+import { MetricsPane } from "./MetricsPane.js";
+import { OverviewPane } from "./OverviewPane.js";
 import { PolicyPane } from "./PolicyPane.js";
 import { ReflectionsPane } from "./ReflectionsPane.js";
 import { SessionsPane } from "./SessionsPane.js";
@@ -9,9 +12,29 @@ export function App() {
       <header style={headerStyle}>
         <h1 style={{ margin: 0 }}>TrustLayer</h1>
         <p style={{ marginTop: 8, opacity: 0.7 }}>
-          Observability and policy plane for agentic AI.
+          Observability and policy plane for agentic AI — dogfooding
+          agentcenter, RCCAEF, and routekit.
         </p>
       </header>
+
+      <Pane
+        title="Overview"
+        blurb="Real-time counts and policy pass rate across all instrumented agents."
+      >
+        <OverviewPane />
+      </Pane>
+
+      <Pane
+        title="Metrics"
+        blurb={
+          <>
+            Prometheus metrics from the Guardian sidecar
+            (<code>GET /metrics</code>).
+          </>
+        }
+      >
+        <MetricsPane />
+      </Pane>
 
       <Pane
         title="Traces"
@@ -61,6 +84,18 @@ export function App() {
         }
       >
         <PolicyPane />
+      </Pane>
+
+      <Pane
+        title="Compliance"
+        blurb={
+          <>
+            AI system readiness checks. Run{" "}
+            <code>compliance-report</code> to populate.
+          </>
+        }
+      >
+        <CompliancePane />
       </Pane>
     </main>
   );
