@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 import httpx
-import pytest
 
 from trustlayer.schema import (
     AgentTraceEvent,
-    CynefinDomain,
     EventType,
     Metrics,
-    PolicyCheckResult,
     ToolCallPayload,
     ToolResultPayload,
 )
 
-from hermes.llm_reflector import LLMReflector, _build_prompt, _extract_ollama_content, _fallback_narrative
+from hermes.llm_reflector import (
+    LLMReflector,
+    _build_prompt,
+    _extract_ollama_content,
+    _fallback_narrative,
+)
 from hermes.reflector import DeterministicReflector, Reflection, SessionSummary
 
 
@@ -74,12 +75,14 @@ def _mock_ollama_transport(content: str) -> httpx.MockTransport:
             200,
             json={"message": {"content": content}, "model": "test-model"},
         )
+
     return httpx.MockTransport(handler)
 
 
 def _error_transport(status: int) -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(status)
+
     return httpx.MockTransport(handler)
 
 
@@ -157,14 +160,21 @@ class TestLLMReflector:
 class TestBuildPrompt:
     def test_includes_headline_metrics(self):
         summary = SessionSummary(
-            agent_id="a", session_id="s", event_count=5,
+            agent_id="a",
+            session_id="s",
+            event_count=5,
             started_at=datetime.now(timezone.utc),
             ended_at=datetime.now(timezone.utc),
         )
         reflection = Reflection(
             date=datetime.now(timezone.utc).date(),
-            headline_metrics={"sessions": 1, "events": 5, "tool_invocations": 3,
-                              "tool_errors": 0, "total_latency_ms": 45.0},
+            headline_metrics={
+                "sessions": 1,
+                "events": 5,
+                "tool_invocations": 3,
+                "tool_errors": 0,
+                "total_latency_ms": 45.0,
+            },
             top_tools=[("calc", 3)],
             policy_failures=[],
         )
@@ -176,15 +186,22 @@ class TestBuildPrompt:
 
     def test_includes_policy_failures(self):
         summary = SessionSummary(
-            agent_id="a", session_id="s", event_count=3,
+            agent_id="a",
+            session_id="s",
+            event_count=3,
             started_at=datetime.now(timezone.utc),
             ended_at=datetime.now(timezone.utc),
             policy_failures=[{"policy": "default", "action": "invoke shell", "reason": "blocked"}],
         )
         reflection = Reflection(
             date=datetime.now(timezone.utc).date(),
-            headline_metrics={"sessions": 1, "events": 3, "tool_invocations": 0,
-                              "tool_errors": 0, "total_latency_ms": 0.0},
+            headline_metrics={
+                "sessions": 1,
+                "events": 3,
+                "tool_invocations": 0,
+                "tool_errors": 0,
+                "total_latency_ms": 0.0,
+            },
             top_tools=[],
             policy_failures=[{"policy": "default", "action": "invoke shell", "count": 1}],
         )
@@ -207,8 +224,13 @@ class TestFallbackNarrative:
     def test_produces_readable_summary(self):
         reflection = Reflection(
             date=datetime.now(timezone.utc).date(),
-            headline_metrics={"sessions": 3, "events": 42, "tool_invocations": 30,
-                              "tool_errors": 2, "total_latency_ms": 500.0},
+            headline_metrics={
+                "sessions": 3,
+                "events": 42,
+                "tool_invocations": 30,
+                "tool_errors": 2,
+                "total_latency_ms": 500.0,
+            },
             top_tools=[],
             policy_failures=[{"policy": "default", "action": "invoke shell", "count": 1}],
         )
@@ -223,8 +245,13 @@ class TestFallbackNarrative:
     def test_no_errors_when_clean(self):
         reflection = Reflection(
             date=datetime.now(timezone.utc).date(),
-            headline_metrics={"sessions": 1, "events": 4, "tool_invocations": 2,
-                              "tool_errors": 0, "total_latency_ms": 20.0},
+            headline_metrics={
+                "sessions": 1,
+                "events": 4,
+                "tool_invocations": 2,
+                "tool_errors": 0,
+                "total_latency_ms": 20.0,
+            },
             top_tools=[],
             policy_failures=[],
         )

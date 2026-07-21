@@ -10,8 +10,8 @@ sidecar, and get:
 - a **policy engine** that adjudicates every tool call against a
   declarative ruleset (`PASS` / `FAIL` / `ESCALATE`),
 - an **append-only trace store** that records every `AgentTraceEvent`,
-- a **dashboard** with four live panes (Traces, Sessions, Reflections,
-  Policy),
+- a **dashboard** with live Traces, Sessions, Reflections, Policy, and
+  Compliance panes,
 - a **memory subagent** that materialises sessions into a navigable
   Obsidian vault and runs recursive reflections,
 - an **MCP server** that exposes the whole surface to any MCP-aware
@@ -20,9 +20,11 @@ sidecar, and get:
   histograms, and ingest volume,
 - a **bridge to OpenTelemetry** that ships events into any existing
   OTel pipeline (OTLP, Jaeger, Tempo, Honeycomb, Grafana, Datadog).
+- a **compliance toolkit** for machine-readable system registries, readiness
+  checks, runtime evidence matching, dashboard reports, and audit packages.
 
-No SaaS account. No telemetry leaking offsite. Apache-2.0. Four
-reference SDKs, one wire format, 309 tests in CI.
+No SaaS account. No telemetry leaking offsite. Apache-2.0. Four reference
+SDKs and one wire format.
 
 The wire format is a versioned, RFC-2119 specification at
 [`spec/v0.1/`](./spec/v0.1/) — designed so anyone can write their own
@@ -44,13 +46,14 @@ conforming implementation.
 6. [Policy engine](#policy-engine)
 7. [Deployment](#deployment)
 8. [Observability & KPIs](#observability--kpis)
-9. [Memory & reflections (Hermes)](#memory--reflections-hermes)
-10. [MCP integration](#mcp-integration)
-11. [The protocol](#the-protocol)
-12. [Configuration reference](#configuration-reference)
-13. [Status & roadmap](#status--roadmap)
-14. [Contributing](#contributing)
-15. [License](#license)
+9. [EU AI Act alignment](#eu-ai-act-alignment)
+10. [Memory & reflections (Hermes)](#memory--reflections-hermes)
+11. [MCP integration](#mcp-integration)
+12. [The protocol](#the-protocol)
+13. [Configuration reference](#configuration-reference)
+14. [Status & roadmap](#status--roadmap)
+15. [Contributing](#contributing)
+16. [License](#license)
 
 ---
 
@@ -654,6 +657,41 @@ cd dashboard && npm run build && npm run preview
 For Grafana / Datadog / Honeycomb / Tempo, use the OpenTelemetry
 bridge (see [Python pattern D](#pattern-d--bridge-to-opentelemetry))
 or scrape `/metrics` directly.
+
+---
+
+## EU AI Act alignment
+
+TrustLayer includes a built-in compliance toolkit designed to support
+EU AI Act implementation and evidence workflows. It is an engineering
+control plane, not legal certification by itself.
+
+### What is included
+
+- Machine-readable AI system registry (`system.yaml`) with ownership,
+  risk class, oversight, and control-framework assignment.
+- Readiness scanner and dashboard report generator under `compliance/`
+  for control-level PASS/FAIL/GAP summaries across multiple systems.
+- Runtime evidence linking from stored `AgentTraceEvent`s to controls,
+  including policy checks, escalations, and trace-backed audit support.
+- Guardian policy enforcement + hot-reload + immutable event history,
+  suitable for operational governance controls.
+
+### Article-level support mapping
+
+| EU AI Act area | TrustLayer capability | Primary artifact |
+|---|---|---|
+| **Art. 9** Risk management | Policy-driven guardrails and recorded decision outcomes | `POLICY_CHECK` events, Guardian policy files |
+| **Art. 12** Logging / traceability | Append-only event stream and session aggregation | `GET /v1/events`, `GET /v1/sessions`, JSONL store |
+| **Art. 13** Transparency support | Structured traces, tool/model metadata, dashboard visibility | Dashboard panes + exported compliance report |
+| **Art. 14** Human oversight | Explicit `ESCALATE` path and human-review hooks | `POLICY_CHECK` (`ESCALATE`), `HUMAN_ESCALATION` events |
+| **Art. 15** Robustness monitoring | Latency, ingest, verdict and request metrics | `/metrics` + KPI dashboards |
+
+### Important boundary
+
+TrustLayer helps teams *implement and evidence* controls; it does not
+replace legal interpretation, conformity assessment, or organizational
+governance processes required for final compliance claims.
 
 ---
 

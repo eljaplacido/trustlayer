@@ -73,9 +73,7 @@ class _FakeGuardian:
         self._decision = decision
         self.closed = False
 
-    def check(
-        self, event: AgentTraceEvent, policy_name: str | None = None
-    ) -> dict[str, Any]:
+    def check(self, event: AgentTraceEvent, policy_name: str | None = None) -> dict[str, Any]:
         _FakeGuardian.last_event = event
         _FakeGuardian.last_policy_name = policy_name or _FakeGuardian.last_policy_name
         return {
@@ -136,9 +134,7 @@ def test_emit_event_uses_default_endpoint_when_unset() -> None:
 
 
 def test_guardian_check_returns_verdict_dict() -> None:
-    def factory(
-        endpoint: str, *, policy_name: str | None, fail_open: bool
-    ) -> _FakeGuardian:
+    def factory(endpoint: str, *, policy_name: str | None, fail_open: bool) -> _FakeGuardian:
         return _FakeGuardian(
             endpoint, policy_name=policy_name, fail_open=fail_open, decision="FAIL"
         )

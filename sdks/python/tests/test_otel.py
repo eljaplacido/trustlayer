@@ -7,19 +7,17 @@ import pytest
 # Skip the whole file when the OTel extra isn't installed. Pytest treats
 # this as a collection-time skip with a clear reason.
 otel_trace = pytest.importorskip("opentelemetry.trace")
-otel_export = pytest.importorskip(
-    "opentelemetry.sdk.trace.export.in_memory_span_exporter"
-)
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+otel_export = pytest.importorskip("opentelemetry.sdk.trace.export.in_memory_span_exporter")
+from opentelemetry.sdk.trace import TracerProvider  # noqa: E402
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor  # noqa: E402
 
-from trustlayer import (
+from trustlayer import (  # noqa: E402
     AgentTraceEvent,
     CynefinDomain,
     EventType,
     Metrics,
 )
-from trustlayer.otel import OTelExporter
+from trustlayer.otel import OTelExporter  # noqa: E402
 
 
 # A tracer wired up to an in-memory exporter for round-trip assertions.
@@ -133,9 +131,7 @@ def test_payload_is_depth_flattened(captured_spans) -> None:
 
 def test_payload_list_of_primitives_stays_as_sequence(captured_spans) -> None:
     tracer, exp = captured_spans
-    OTelExporter(tracer).emit(
-        _event(payload={"args": {"tools": ["shell", "browser"]}})
-    )
+    OTelExporter(tracer).emit(_event(payload={"args": {"tools": ["shell", "browser"]}}))
     attrs = dict(exp.get_finished_spans()[0].attributes)
     tools = attrs["trustlayer.payload.args.tools"]
     # OTel may normalise to a tuple — accept either ordered container.
@@ -144,9 +140,7 @@ def test_payload_list_of_primitives_stays_as_sequence(captured_spans) -> None:
 
 def test_payload_mixed_list_is_indexed(captured_spans) -> None:
     tracer, exp = captured_spans
-    OTelExporter(tracer).emit(
-        _event(payload={"items": [{"name": "a"}, {"name": "b"}]})
-    )
+    OTelExporter(tracer).emit(_event(payload={"items": [{"name": "a"}, {"name": "b"}]}))
     attrs = dict(exp.get_finished_spans()[0].attributes)
     assert attrs["trustlayer.payload.items.0.name"] == "a"
     assert attrs["trustlayer.payload.items.1.name"] == "b"

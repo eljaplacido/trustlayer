@@ -11,11 +11,9 @@ so Hermes never breaks because the LLM is unavailable.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -78,22 +76,16 @@ class LLMReflector:
     def last_error(self) -> str | None:
         return self._last_error
 
-    def summarise_session(
-        self, events: Sequence[AgentTraceEvent]
-    ) -> SessionSummary:
+    def summarise_session(self, events: Sequence[AgentTraceEvent]) -> SessionSummary:
         return self._fallback.summarise_session(events)
 
-    def synthesise(
-        self, summaries: Sequence[SessionSummary]
-    ) -> Reflection:
+    def synthesise(self, summaries: Sequence[SessionSummary]) -> Reflection:
         structured = self._fallback.synthesise(summaries)
         narrative = self._call_llm(summaries, structured)
         structured.headline_metrics["narrative"] = narrative
         return structured
 
-    def reflect_narrative(
-        self, summaries: Sequence[SessionSummary]
-    ) -> LLMReflection:
+    def reflect_narrative(self, summaries: Sequence[SessionSummary]) -> LLMReflection:
         """Full reflection: structured stats + LLM narrative."""
         structured = self._fallback.synthesise(summaries)
         narrative = self._call_llm(summaries, structured)
@@ -133,9 +125,7 @@ class LLMReflector:
             return _fallback_narrative(structured)
 
 
-def _build_prompt(
-    summaries: Sequence[SessionSummary], structured: Reflection
-) -> str:
+def _build_prompt(summaries: Sequence[SessionSummary], structured: Reflection) -> str:
     lines: list[str] = [
         "Below are structural summaries of agent sessions from the last reflection period.",
         "",
@@ -156,10 +146,7 @@ def _build_prompt(
         lines.append("")
         lines.append("## Policy failures")
         for entry in structured.policy_failures:
-            lines.append(
-                f"- `{entry['policy']}` on `{entry['action']}` "
-                f"({entry['count']}x)"
-            )
+            lines.append(f"- `{entry['policy']}` on `{entry['action']}` ({entry['count']}x)")
 
     lines.append("")
     lines.append("## Per-session summaries")
@@ -188,7 +175,7 @@ def _fallback_narrative(structured: Reflection) -> str:
     metrics = structured.headline_metrics
     lines = [
         f"Auto-generated structural summary for {structured.date.isoformat()}.",
-        f"",
+        "",
         f"{metrics['sessions']} session(s), {metrics['events']} events, "
         f"{metrics['tool_invocations']} tool invocation(s).",
     ]
@@ -197,7 +184,5 @@ def _fallback_narrative(structured: Reflection) -> str:
         lines.append(f"{fail_count} policy failure type(s) detected.")
     if metrics.get("tool_errors", 0) > 0:
         lines.append(f"{metrics['tool_errors']} tool error(s).")
-    lines.append(
-        "No LLM narrative available — the LLM endpoint was unreachable."
-    )
+    lines.append("No LLM narrative available — the LLM endpoint was unreachable.")
     return " ".join(lines)

@@ -71,9 +71,7 @@ def emit_event(
         payload=input.payload,
         metrics=input.metrics or Metrics(),
     )
-    client = (
-        client_factory(endpoint=input.endpoint) if input.endpoint else client_factory()
-    )
+    client = client_factory(endpoint=input.endpoint) if input.endpoint else client_factory()
     try:
         client.emit(event)
     finally:

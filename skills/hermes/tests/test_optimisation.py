@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from hermes.hermes_agent import HermesAgent
 from hermes.reflector import DeterministicReflector
@@ -83,6 +82,15 @@ def test_sidecar_records_every_unique_trace_id(tmp_path: Path, sample_session):
     assert len(lines2) == len(sample_session)
 
 
+def test_sidecar_reingest_is_idempotent_across_processes(tmp_path: Path, sample_session):
+    HermesAgent(tmp_path).ingest(sample_session)
+    HermesAgent(tmp_path).ingest(sample_session)
+
+    sidecar = tmp_path / ".hermes_state/researcher/session-1.events.jsonl"
+    lines = [line for line in sidecar.read_text(encoding="utf-8").splitlines() if line]
+    assert len(lines) == len(sample_session)
+
+
 def test_persist_events_false_skips_sidecar(tmp_path: Path, sample_session):
     agent = HermesAgent(tmp_path, persist_events=False)
     agent.ingest(sample_session)
@@ -130,9 +138,7 @@ def test_lru_touch_reorders_on_reingest(tmp_path: Path, make_event):
 def test_max_cached_sessions_none_disables_eviction(tmp_path: Path, make_event):
     agent = HermesAgent(tmp_path, max_cached_sessions=None)
     for i in range(10):
-        agent.ingest(
-            [make_event(session_id=f"s{i}", event_type=EventType.AGENT_START)]
-        )
+        agent.ingest([make_event(session_id=f"s{i}", event_type=EventType.AGENT_START)])
     assert len(agent.session_keys) == 10
 
 

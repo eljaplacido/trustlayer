@@ -53,7 +53,7 @@ notify = { version = "6", optional = true }
 prometheus = { version = "0.13", optional = true, default-features = false }
 # Python native extension via pyo3 (ADR-014). Buildable with maturin.
 # Use `maturin develop` or `maturin build` to produce a wheel.
-pyo3 = { version = "0.22", optional = true, default-features = false, features = ["extension-module", "macros"] }
+pyo3 = { version = "0.29", optional = true, default-features = false, features = ["extension-module", "macros"] }
 # Postgres trace-store backend (ADR-015). Runtime query API only (no compile-
 # time DATABASE_URL needed). rustls so no system OpenSSL dependency.
 sqlx = { version = "0.8", optional = true, default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }

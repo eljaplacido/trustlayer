@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+  # RUSTSEC-2023-0071 (rsa Marvin timing attack) has no upstream fixed release.
+  # TrustLayer does not use RSA private-key decryption/signing paths directly;
+  # dependency is transitive via ecosystem crates. Revisit on every release.
+  "RUSTSEC-2023-0071",
+]
