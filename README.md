@@ -43,6 +43,7 @@ conforming implementation.
    - [TypeScript / Node](#typescript--node)
    - [Go](#go)
    - [Any language (raw HTTP)](#any-language-raw-http)
+   - [Stack recipes](#stack-recipes)
 6. [Policy engine](#policy-engine)
 7. [Deployment](#deployment)
 8. [Observability & KPIs](#observability--kpis)
@@ -51,9 +52,14 @@ conforming implementation.
 11. [MCP integration](#mcp-integration)
 12. [The protocol](#the-protocol)
 13. [Configuration reference](#configuration-reference)
-14. [Status & roadmap](#status--roadmap)
-15. [Contributing](#contributing)
-16. [License](#license)
+14. [Developer tooling & agents](#developer-tooling--agents)
+15. [Status & roadmap](#status--roadmap)
+16. [Contributing](#contributing)
+17. [License](#license)
+
+**Start integrating:** [`docs/INTEGRATING.md`](./docs/INTEGRATING.md) — depth
+levels (observe → guard → evidence → full plane) and stack recipes
+(LangGraph, FastAPI, Next.js, Go workers, Claude Code / MCP, OTel).
 
 ---
 
@@ -102,6 +108,15 @@ TypeScript front-end agent all talking to one workflow.
 SDKs in four languages; the wire format is documented to RFC-2119
 precision so anyone can write a fifth. The spec has a normative
 conformance section (W1–H6) and a fixture directory.
+
+**EU AI Act Article 50 readiness (from 2 Aug 2026).** Register systems,
+configure nested disclosure/marking, emit `DISCLOSURE_SHOWN` /
+`CONTENT_MARKED` events, run the readiness scanner in CI, and export an
+audit package. Evidence support — not a legal certification.
+
+**IDE / agent-native control plane.** Drive emit, guardian checks, and
+Hermes via MCP from Claude Code, Cursor, or any MCP client without
+per-language glue.
 
 ---
 
@@ -164,14 +179,15 @@ cd ../../dashboard
 npm install && npm run dev   # http://localhost:5173
 ```
 
-Four panes:
+Seven panes (see [`dashboard/README.md`](./dashboard/README.md)):
 
+- **Overview** — KPI cards, event mix, registered agents
+- **Metrics** — guardian Prometheus counters / histograms
+- **Compliance** — readiness report from `public/compliance-readiness.json`
 - **Traces** — live `AgentTraceEvent` stream (`GET /v1/events`)
-- **Sessions** — one row per `(agent_id, session_id)`; click for the
-  full timeline
+- **Sessions** — one row per `(agent_id, session_id)`; click for timeline
 - **Reflections** — Hermes synthesis notes
-- **Policy** — recent `POLICY_CHECK` events with PASS / FAIL /
-  ESCALATE chips
+- **Policy** — recent `POLICY_CHECK` events with PASS / FAIL / ESCALATE
 
 ### 4. Scrape the metrics
 
@@ -236,8 +252,12 @@ The four layers:
    and runs structural (or LLM-backed) reflections.
 4. **Observe** — the dashboard, `/metrics`, and trace-store reads
    surface everything to humans and other systems.
+5. **Evidence** — `compliance/` maps registries + runtime events to
+   control catalogues (EU AI Act, internal templates) and produces
+   readiness / audit artefacts for the Compliance pane.
 
-Full architecture write-up: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+Full architecture: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).  
+Stack integration guide: [`docs/INTEGRATING.md`](./docs/INTEGRATING.md).
 
 ---
 
@@ -436,6 +456,45 @@ curl -X POST http://127.0.0.1:8089/v1/events \
 counts as conformant if it passes the W1–W7 checklist in
 `spec/v0.1/06-conformance.md`.
 
+### Stack recipes
+
+| Your stack | How to integrate | Depth |
+|---|---|---|
+| **LangChain / LangGraph (Python)** | `@instrument_tool` on tools; `tracer.check` before model/tool nodes; use graph `thread_id` as `session_id` | Guard |
+| **FastAPI / workers (Python)** | Per-request `Tracer`; gate outbound tools in service layer; scrape `/metrics`; optional `trustlayer.otel` | Guard + OTel |
+| **Node / Next.js agents (TS)** | `wrapTool` + `tracer.check`; one `sessionId` per chat turn | Guard |
+| **Go orchestrators** | `Tracer.Check` / `ToolCall` around shell, HTTP, and model clients | Guard |
+| **Claude Code / Cursor / MCP IDEs** | Run `trustlayer-mcp` (stdio); call emit / guardian / Hermes tools | Full plane |
+| **OTel shops (Tempo, Jaeger, Datadog)** | Keep your collector; add Python `OTelExporter` for span bridge | Observe |
+| **Multi-language monorepo** | One guardian; Python + TS + Go SDKs; shared token; distinct `agent_id` | Guard |
+| **Art. 50 transparency** | `system.yaml` + `DISCLOSURE_SHOWN` / `CONTENT_MARKED` + readiness scanner | Evidence |
+
+Step-by-step copy-paste patterns: [`docs/INTEGRATING.md`](./docs/INTEGRATING.md).  
+End-to-end demo (PASS/FAIL/ESCALATE + Hermes): [`examples/end_to_end_demo.py`](./examples/end_to_end_demo.py).
+
+#### Article 50 disclosure / marking (all SDKs)
+
+```python
+from trustlayer import Tracer, EventType
+
+tracer = Tracer(agent_id="chat-ui", session_id=session_id)
+# After showing "You are interacting with an AI assistant"
+tracer.emit(EventType.DISCLOSURE_SHOWN, {
+    "surface": "chat_banner",
+    "mechanism": "first_turn_notice",
+})
+# After labeling or watermarking generated content
+tracer.emit(EventType.CONTENT_MARKED, {
+    "content_type": "image",
+    "method": "metadata",
+})
+```
+
+Event types are available in Python, TypeScript, Go, and Rust
+(`DISCLOSURE_SHOWN`, `CONTENT_MARKED`). Pair with a nested
+`article_50` block in `system.yaml` (see
+[`compliance/examples/system.yaml`](./compliance/examples/system.yaml)).
+
 ---
 
 ## Policy engine
@@ -489,7 +548,8 @@ The guardian walks rules top-to-bottom and returns the first match.
 
 **`match` fields:**
 
-- `event_type` — one of the seven `event_type` enum values.
+- `event_type` — one of the canonical `event_type` enum values
+  (including `DISCLOSURE_SHOWN` and `CONTENT_MARKED`).
 - `tool_name` — shortcut for `payload.tool_name` equality.
 - `agent_id` — scope the rule to one agent.
 - `cynefin_domain` — match the event's domain classification.
@@ -662,36 +722,67 @@ or scrape `/metrics` directly.
 
 ## EU AI Act alignment
 
-TrustLayer includes a built-in compliance toolkit designed to support
-EU AI Act implementation and evidence workflows. It is an engineering
-control plane, not legal certification by itself.
+TrustLayer includes a compliance toolkit for **implementation and
+evidence** workflows. It is an engineering control plane — **not** legal
+advice, conformity assessment, or a certification.
+
+Article 50 transparency obligations become applicable **2 August 2026**
+for in-scope providers and deployers (chatbots, generative media,
+emotion/biometric systems, deepfakes, public-interest AI content). Duties
+depend on **role and use case**, not company size.
 
 ### What is included
 
-- Machine-readable AI system registry (`system.yaml`) with ownership,
-  risk class, oversight, and control-framework assignment.
-- Readiness scanner and dashboard report generator under `compliance/`
-  for control-level PASS/FAIL/GAP summaries across multiple systems.
-- Runtime evidence linking from stored `AgentTraceEvent`s to controls,
-  including policy checks, escalations, and trace-backed audit support.
-- Guardian policy enforcement + hot-reload + immutable event history,
-  suitable for operational governance controls.
+| Component | Path | Role |
+|---|---|---|
+| System registry schema | `compliance/schemas/system.schema.json` | Ownership, risk class, oversight, nested `article_50` |
+| Control catalogues | `compliance/controls/*.yaml` | EU AI Act, Aitomation template, Article 50 |
+| Readiness scanner | `python -m compliance.src.readiness_scanner` | PASS/FAIL/GAP + score; CI exit codes |
+| Evidence linker | `compliance/src/evidence_linker.py` | Match trace events to control `evidence_query` |
+| Report / audit generators | `report_generator.py`, `audit_generator.py` | Dashboard JSON + Markdown/JSON packages |
+| Dashboard Compliance pane | `dashboard/src/CompliancePane.tsx` | Human-readable multi-system readiness |
+| Hermes compliance graph | `skills/hermes/compliance_graph.py` | Obsidian notes under `07_Compliance/` |
+
+### Quick compliance loop
+
+```bash
+# 1. Add system.yaml to your product repo (copy compliance/examples/system.yaml)
+# 2. Instrument DISCLOSURE_SHOWN / CONTENT_MARKED where UX requires it
+# 3. Scan
+python -m compliance.src.readiness_scanner --project-dir /path/to/product
+
+# 4. Feed the dashboard (example fixture ships in dashboard/public/)
+python -c "
+from pathlib import Path
+from compliance.src.report_generator import generate_dashboard_report
+generate_dashboard_report([Path('/path/to/product')],
+                          Path('dashboard/public/compliance-readiness.json'))
+"
+
+# 5. CI
+./scripts/verify.sh compliance
+```
 
 ### Article-level support mapping
 
 | EU AI Act area | TrustLayer capability | Primary artifact |
 |---|---|---|
-| **Art. 9** Risk management | Policy-driven guardrails and recorded decision outcomes | `POLICY_CHECK` events, Guardian policy files |
-| **Art. 12** Logging / traceability | Append-only event stream and session aggregation | `GET /v1/events`, `GET /v1/sessions`, JSONL store |
-| **Art. 13** Transparency support | Structured traces, tool/model metadata, dashboard visibility | Dashboard panes + exported compliance report |
-| **Art. 14** Human oversight | Explicit `ESCALATE` path and human-review hooks | `POLICY_CHECK` (`ESCALATE`), `HUMAN_ESCALATION` events |
-| **Art. 15** Robustness monitoring | Latency, ingest, verdict and request metrics | `/metrics` + KPI dashboards |
+| **Art. 9** Risk management | Policy-driven guardrails and recorded decisions | `POLICY_CHECK`, guardian policy files |
+| **Art. 12** Logging / traceability | Append-only event stream + sessions | `/v1/events`, `/v1/sessions`, JSONL/Postgres |
+| **Art. 13** Transparency | Structured traces, dashboard, system registry | Compliance pane + readiness report |
+| **Art. 14** Human oversight | `ESCALATE` path and human-review hooks | `POLICY_CHECK` / `HUMAN_ESCALATION` |
+| **Art. 15** Robustness monitoring | Latency, ingest, verdict metrics | `/metrics` + KPI tables above |
+| **Art. 50** Transparency obligations | Nested disclosure/marking config; runtime events; scanner checks | `DISCLOSURE_SHOWN`, `CONTENT_MARKED`, Art. 50 controls, ADR-016 |
 
 ### Important boundary
 
-TrustLayer helps teams *implement and evidence* controls; it does not
-replace legal interpretation, conformity assessment, or organizational
-governance processes required for final compliance claims.
+Green readiness scores and linked traces help you **demonstrate** controls.
+They do **not** replace legal interpretation, market-surveillance
+cooperation, or organizational governance. Do not commit third-party
+registries or private audit packages to this repo.
+
+Strategy notes: [`docs/EU_AI_ACT_COMPLIANCE_STRATEGY.md`](./docs/EU_AI_ACT_COMPLIANCE_STRATEGY.md).  
+Package docs: [`compliance/README.md`](./compliance/README.md).
 
 ---
 
@@ -784,7 +875,7 @@ specification — [`spec/v0.1/`](./spec/v0.1/). Six documents:
 1. [Wire format](./spec/v0.1/01-wire-format.md) — `AgentTraceEvent`
    envelope, encoding rules, strict-envelope policy.
 2. [Event types](./spec/v0.1/02-event-types.md) — payload contracts
-   for the seven `event_type` values.
+   for canonical `event_type` values (including transparency events).
 3. [Cynefin domain](./spec/v0.1/03-cynefin.md) — enum semantics and
    the `CHAOTIC` ESCALATE-by-default rule.
 4. [Policy language](./spec/v0.1/04-policy-language.md) — CSL syntax,
@@ -851,75 +942,86 @@ Implementation mirror (developer-friendly view of the same wire format):
 
 ```
 trustlayer/
+├── AGENTS.md              Agent / contributor operating contract
+├── Makefile               verify / test / security / compliance targets
+├── scripts/verify.sh      Canonical local release gate
 ├── core-rs/               Rust core + trustlayer-guardian sidecar
 ├── sdks/
 │   ├── python/            trustlayer-sdk (+ trustlayer.otel)
 │   ├── typescript/        @trustlayer/sdk
 │   └── go/                trustlayer (Go SDK)
-├── skills/
-│   └── hermes/            Memory + reflection subagent
+├── skills/hermes/         Memory + reflection + compliance graph
+├── compliance/            Registries, scanners, evidence, audit packages
 ├── mcp-server/            FastMCP bridge to SDK + guardian + Hermes
-├── dashboard/             React + Vite observability UI
-├── spec/                  Citable, versioned protocol spec
-│   └── v0.1/              Active spec + conformance fixtures
-├── obsidian_vault/        ADRs, agent skills, memory, reflections
-├── docs/                  ARCHITECTURE, SCHEMA, VERSIONING, CURRENT_STATUS
-└── .github/workflows/     CI: rust × python × typescript × go
+├── dashboard/             React + Vite UI (7 panes incl. Compliance)
+├── examples/              End-to-end demos
+├── spec/v0.1/             Normative protocol + conformance fixtures
+├── obsidian_vault/        ADRs, memory, reflections, 07_Compliance/
+├── docs/                  ARCHITECTURE, INTEGRATING, SCHEMA, STATUS, …
+├── .opencode/skills/      Scout / Plan / Build / Review / Compliance
+└── .github/workflows/     CI matrix + compliance + security jobs
 ```
+
+---
+
+## Developer tooling & agents
+
+| Tool | Purpose |
+|---|---|
+| `./scripts/verify.sh [test\|security\|compliance\|all]` | Local release gate (lint + types + tests + audits) |
+| `make verify` / `make compliance` | Thin wrappers around `verify.sh` |
+| [`AGENTS.md`](./AGENTS.md) | Required workflow for human and AI contributors |
+| `.opencode/skills/{scout,plan,build,review,compliance}/` | Bounded agent skills for this monorepo |
+| [`docs/INTEGRATING.md`](./docs/INTEGRATING.md) | Stack integration depth + recipes |
+| [`docs/PROJECT.md`](./docs/PROJECT.md) | Mission, constraints, core commands |
+| [`docs/CURRENT_STATE.md`](./docs/CURRENT_STATE.md) | Milestone, blockers, next action |
+
+CI mirrors the gate: Python / TS / Go / Rust / Hermes / MCP / dashboard /
+compliance / security (see `.github/workflows/ci.yml`).
 
 ---
 
 ## Status & roadmap
 
-309 tests across the matrix, all green in CI:
+Local gate: `./scripts/verify.sh test` (see CI for the published matrix).
 
-| Surface | Tests |
+| Surface | Role |
 |---|---|
-| Rust core (`core-rs`) | 86 (lib unit + cross-language + HTTP + policy-watch) |
-| Python SDK (`sdks/python`) | 49 |
-| Hermes (`skills/hermes`) | 56 |
-| MCP server (`mcp-server`) | 21 |
-| TypeScript SDK (`sdks/typescript`) | 33 |
-| Dashboard (`dashboard`) | 33 |
-| Go SDK (`sdks/go`) | 31 |
-| **Total** | **309** |
+| Rust core (`core-rs`) | Guardian, policy, trace store, metrics, HTTP API |
+| Python / TypeScript / Go SDKs | Instrumentation + guardian clients |
+| Hermes | Vault memory, reflections, compliance graph |
+| Compliance | Registries, readiness, evidence, audit packages |
+| MCP server | IDE / agent tool surface |
+| Dashboard | Seven-pane operator UI |
 
-**Shipped (Phases 1–6 Slice 4f):** SDKs in four languages, policy
-engine with payload predicates and hot-reload, trace store with
-filtered queries, append-only persistence, dashboard, MCP server
-(stdio + SSE), Hermes memory + reflections + code graph + LLM-backed
-narrative reflection, bearer-token auth, ingest rate limit,
-Prometheus `/metrics`, OpenTelemetry bridge, formal v0.1 spec with
-conformance fixtures, pyo3 FFI for in-process evaluation,
-Docker quickstart deployment, Apache-2.0 LICENSE, CONTRIBUTING +
-CHANGELOG + SemVer + release policy, matrix CI.
+**Shipped (Phases 1–7 hardening):** four SDKs, policy engine with payload
+predicates and hot-reload, JSONL + Postgres trace stores, dashboard
+(Overview / Metrics / Compliance / Traces / Sessions / Reflections /
+Policy), MCP (stdio + SSE), Hermes (+ LLM reflector, code graph),
+bearer auth, rate limit, Prometheus `/metrics`, OTel bridge, formal
+v0.1 spec + fixtures, Docker Compose, EU AI Act / Article 50 toolkit
+with nested config + cross-SDK event parity (ADR-016), agent contract
+and verify gate.
 
-**Complete.** The Phase 6 Slice 4 items (LLM reflector, pyo3 FFI,
-Docker deployment, release checklist) are all shipped. See
-[`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md).
+**Next:** live evidence-linker dogfood against authenticated stores;
+package publish (PyPI / npm / crates.io / pkg.go.dev); stable spec URL.
 
-**Pre-`v0.1.0` release tasks:** tag releases per
-[`docs/VERSIONING.md`](./docs/VERSIONING.md), publish to PyPI / npm
-/ pkg.go.dev / crates.io, ship a `docker-compose.yml` quickstart,
-publish the spec at a stable URL.
-
-The authoritative roadmap and per-phase detail live in
-[`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md).
+Detail: [`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md) ·
+[`docs/CURRENT_STATE.md`](./docs/CURRENT_STATE.md) ·
+[`docs/RELEASE.md`](./docs/RELEASE.md).
 
 ---
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the schema-change
-protocol, ADR cadence, new-SDK checklist, per-layer commands, and
-PR workflow.
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`AGENTS.md`](./AGENTS.md).
 
-- **Schema changes** must touch the Python, TypeScript, and Rust
-  mirrors in one PR, plus a cross-language test.
-- **Architectural decisions** get an ADR in
-  `obsidian_vault/01_Architecture/` before the code.
-- **Tests are the contract** for shipped behaviour — new behaviour
-  ships with a new test.
+- **Schema changes** must touch Python, TypeScript, Go, and Rust in one
+  change set, plus cross-language tests / fixtures.
+- **Architectural decisions** get an ADR under
+  `obsidian_vault/01_Architecture/` and a row in `docs/DECISIONS.md`.
+- **Tests are the contract** — new behaviour ships with a new test.
+- Run `./scripts/verify.sh test` before claiming done.
 
 ---
 

@@ -18,6 +18,8 @@ live evidence linking and release publication.
 - [x] Repository agent contract (`AGENTS.md`) and Scout/Plan/Build/Review/
       Compliance OpenCode skills.
 - [x] Local `./scripts/verify.sh test` green (2026-07-28).
+- [x] Developer docs: root README stack recipes + Art. 50; `docs/INTEGRATING.md`;
+      CONTRIBUTING verify gate; skills index.
 
 ## Blockers
 

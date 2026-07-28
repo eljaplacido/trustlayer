@@ -27,15 +27,20 @@ and tooling.
 
 ```
 trustlayer/
-├── core-rs/              Rust core + trace-store sidecar
+├── AGENTS.md             Agent/contributor operating contract
+├── core-rs/              Rust core + trustlayer-guardian sidecar
 ├── sdks/python/          Python SDK (trustlayer-sdk)
 ├── sdks/typescript/      TypeScript SDK (@trustlayer/sdk)
-├── skills/hermes/        Hermes memory subagent
-├── mcp-server/           MCP bridge (FastMCP stdio)
+├── sdks/go/              Go SDK
+├── skills/hermes/        Hermes memory + compliance graph subagent
+├── compliance/           EU AI Act readiness, evidence, audit packages
+├── mcp-server/           MCP bridge (FastMCP stdio + SSE)
 ├── dashboard/            React + Vite observability UI
+├── scripts/verify.sh     Canonical local release gate
 ├── spec/                 Versioned, normative protocol specification
-├── obsidian_vault/       ADRs, memory traces, reflections
-└── docs/                 SCHEMA mirror, ARCHITECTURE, VERSIONING, STATUS
+├── obsidian_vault/       ADRs, memory traces, reflections, compliance notes
+├── .opencode/skills/     Scout / Plan / Build / Review / Compliance skills
+└── docs/                 SCHEMA, ARCHITECTURE, INTEGRATING, STATUS
 ```
 
 ## Development setup
@@ -50,7 +55,7 @@ trustlayer/
 ### Quickstart
 ```bash
 # Clone and install all layers
-git clone https://github.com/trustlayer/trustlayer.git
+git clone https://github.com/eljaplacido/trustlayer.git
 cd trustlayer
 
 # Python SDK + Hermes
@@ -75,28 +80,31 @@ cd dashboard && npm install && cd ..
 ```
 
 ### Running tests
+
+Preferred (full monorepo gate):
+
 ```bash
-# Python SDK
+./scripts/verify.sh test          # unit/lint across all layers
+./scripts/verify.sh security      # secret grep + dependency audits
+./scripts/verify.sh compliance    # compliance pytest only
+make verify                       # same as ./scripts/verify.sh
+```
+
+Per-layer (when iterating):
+
+```bash
 cd sdks/python && pytest
-
-# Hermes
 cd skills/hermes && pytest
-
-# TypeScript SDK
+cd compliance && python -m pytest
 cd sdks/typescript && npm test
-
-# Rust core
 cd core-rs && cargo test --features server
-
-# MCP server
-cd mcp-server && PYTHONPATH=src:../sdks/python/src:../skills .venv/bin/python -m pytest
-
-# Dashboard
+cd mcp-server && PYTHONPATH=src:../sdks/python/src:../skills python -m pytest
 cd dashboard && npm test
-
-# Go SDK
 cd sdks/go && go vet ./... && go test ./... -race
 ```
+
+Agentic contributors: read [`AGENTS.md`](./AGENTS.md) and use the
+Scout → Plan → Build → Review skills under `.opencode/skills/`.
 
 ## Making changes
 
@@ -136,14 +144,13 @@ New default policies (`core-rs/policies/`) should:
 
 ## Pull request checklist
 
-- [ ] Tests pass in all modified layers
+- [ ] `./scripts/verify.sh test` is green (or report exact failures)
 - [ ] New behavior has test coverage
-- [ ] Schema changes are mirrored across all language implementations
-- [ ] Architectural changes have an ADR
-- [ ] `docs/CURRENT_STATUS.md` is updated
-- [ ] Build succeeds (`cargo build`, `tsc`, etc.)
-- [ ] Lint is clean (`cargo clippy`, `ruff`, `tsc --noEmit`)
-- [ ] Signed-off commits (`git commit -s`)
+- [ ] Schema changes are mirrored across Python, TypeScript, Go, and Rust
+- [ ] Architectural changes have an ADR + `docs/DECISIONS.md` index row
+- [ ] `docs/CURRENT_STATUS.md` / `docs/CURRENT_STATE.md` updated when milestones move
+- [ ] No secrets, private traces, or third-party system registries committed
+- [ ] Signed-off commits (`git commit -s`) preferred
 
 ## License
 

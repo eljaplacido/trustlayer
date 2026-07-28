@@ -34,6 +34,13 @@ integration, and machine-readable compliance evidence.
 - Run the guardian: `cd core-rs && cargo run --release --features server --bin trustlayer-guardian`
 - Build dashboard: `cd dashboard && npm run build`
 
+## Developer entry points
+
+- Integrate with an existing stack: [`docs/INTEGRATING.md`](./INTEGRATING.md)
+- Root walkthrough: [`README.md`](../README.md)
+- Agent/contributor contract: [`AGENTS.md`](../AGENTS.md)
+- OpenCode skills: `.opencode/skills/{scout,plan,build,review,compliance}/`
+
 ## Release Gate
 
 Run `./scripts/verify.sh`, inspect `docs/RELEASE.md`, and ensure CI is green
