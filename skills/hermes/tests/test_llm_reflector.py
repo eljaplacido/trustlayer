@@ -2,19 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
-
-from trustlayer.schema import (
-    AgentTraceEvent,
-    EventType,
-    Metrics,
-    ToolCallPayload,
-    ToolResultPayload,
-)
-
 from hermes.llm_reflector import (
     LLMReflector,
     _build_prompt,
@@ -22,6 +13,13 @@ from hermes.llm_reflector import (
     _fallback_narrative,
 )
 from hermes.reflector import DeterministicReflector, Reflection, SessionSummary
+from trustlayer.schema import (
+    AgentTraceEvent,
+    EventType,
+    Metrics,
+    ToolCallPayload,
+    ToolResultPayload,
+)
 
 
 def _session(agent: str, session: str, tool_names: list[str]) -> list[AgentTraceEvent]:
@@ -31,7 +29,7 @@ def _session(agent: str, session: str, tool_names: list[str]) -> list[AgentTrace
         trace_id=uuid4(),
         agent_id=agent,
         session_id=session,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         event_type=EventType.AGENT_START,
         payload={"goal": "test"},
     )
@@ -41,7 +39,7 @@ def _session(agent: str, session: str, tool_names: list[str]) -> list[AgentTrace
             trace_id=uuid4(),
             agent_id=agent,
             session_id=session,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             event_type=EventType.TOOL_CALL,
             payload=ToolCallPayload(tool_name=name, tool_args={"n": i}).model_dump(),
             metrics=Metrics(latency_ms=10.0),
@@ -51,7 +49,7 @@ def _session(agent: str, session: str, tool_names: list[str]) -> list[AgentTrace
             trace_id=uuid4(),
             agent_id=agent,
             session_id=session,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             event_type=EventType.TOOL_RESULT,
             payload=ToolResultPayload(tool_name=name, result={"ok": True}).model_dump(),
             metrics=Metrics(latency_ms=5.0),
@@ -61,7 +59,7 @@ def _session(agent: str, session: str, tool_names: list[str]) -> list[AgentTrace
         trace_id=uuid4(),
         agent_id=agent,
         session_id=session,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         event_type=EventType.AGENT_END,
         payload={"status": "ok"},
     )
@@ -163,11 +161,11 @@ class TestBuildPrompt:
             agent_id="a",
             session_id="s",
             event_count=5,
-            started_at=datetime.now(timezone.utc),
-            ended_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            ended_at=datetime.now(UTC),
         )
         reflection = Reflection(
-            date=datetime.now(timezone.utc).date(),
+            date=datetime.now(UTC).date(),
             headline_metrics={
                 "sessions": 1,
                 "events": 5,
@@ -189,12 +187,12 @@ class TestBuildPrompt:
             agent_id="a",
             session_id="s",
             event_count=3,
-            started_at=datetime.now(timezone.utc),
-            ended_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
+            ended_at=datetime.now(UTC),
             policy_failures=[{"policy": "default", "action": "invoke shell", "reason": "blocked"}],
         )
         reflection = Reflection(
-            date=datetime.now(timezone.utc).date(),
+            date=datetime.now(UTC).date(),
             headline_metrics={
                 "sessions": 1,
                 "events": 3,
@@ -223,7 +221,7 @@ class TestExtractContent:
 class TestFallbackNarrative:
     def test_produces_readable_summary(self):
         reflection = Reflection(
-            date=datetime.now(timezone.utc).date(),
+            date=datetime.now(UTC).date(),
             headline_metrics={
                 "sessions": 3,
                 "events": 42,
@@ -244,7 +242,7 @@ class TestFallbackNarrative:
 
     def test_no_errors_when_clean(self):
         reflection = Reflection(
-            date=datetime.now(timezone.utc).date(),
+            date=datetime.now(UTC).date(),
             headline_metrics={
                 "sessions": 1,
                 "events": 4,

@@ -190,7 +190,9 @@ class CodeGraphImporter:
 
         if node.metadata:
             parts.append("## Metadata")
-            parts.append(f"```json\n{json.dumps(node.metadata, indent=2, sort_keys=True, default=str)}\n```")
+            parts.append(
+                f"```json\n{json.dumps(node.metadata, indent=2, sort_keys=True, default=str)}\n```"
+            )
             parts.append("")
 
         return "\n".join(parts).rstrip() + "\n"

@@ -8,6 +8,8 @@ export const EventType = z.enum([
   "POLICY_CHECK",
   "HUMAN_ESCALATION",
   "AGENT_END",
+  "DISCLOSURE_SHOWN",
+  "CONTENT_MARKED",
 ]);
 export type EventType = z.infer<typeof EventType>;
 

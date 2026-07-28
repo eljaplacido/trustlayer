@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-
 from trustlayer.schema import AgentTraceEvent
 
 from .reflector import DeterministicReflector, Reflection, ReflectionEngine, SessionSummary
@@ -176,8 +175,10 @@ def _fallback_narrative(structured: Reflection) -> str:
     lines = [
         f"Auto-generated structural summary for {structured.date.isoformat()}.",
         "",
-        f"{metrics['sessions']} session(s), {metrics['events']} events, "
-        f"{metrics['tool_invocations']} tool invocation(s).",
+        (
+            f"{metrics['sessions']} session(s), {metrics['events']} events, "
+            f"{metrics['tool_invocations']} tool invocation(s)."
+        ),
     ]
     fail_count = len(structured.policy_failures)
     if fail_count:

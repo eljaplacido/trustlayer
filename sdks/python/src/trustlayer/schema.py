@@ -6,7 +6,7 @@ first, then propagated to ``sdks/typescript/src/schema.ts``.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
@@ -22,6 +22,8 @@ class EventType(str, Enum):
     POLICY_CHECK = "POLICY_CHECK"
     HUMAN_ESCALATION = "HUMAN_ESCALATION"
     AGENT_END = "AGENT_END"
+    DISCLOSURE_SHOWN = "DISCLOSURE_SHOWN"
+    CONTENT_MARKED = "CONTENT_MARKED"
 
 
 class CynefinDomain(str, Enum):
@@ -72,7 +74,7 @@ class PolicyCheckPayload(BaseModel):
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class AgentTraceEvent(BaseModel):

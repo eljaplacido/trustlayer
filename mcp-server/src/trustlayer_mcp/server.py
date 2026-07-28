@@ -103,31 +103,31 @@ def _parse_bind(value: str | None) -> tuple[str, int]:
     return host or DEFAULT_SSE_HOST, port
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 def trustlayer_emit_event(input: EmitEventInput) -> dict[str, Any]:
     """Emit an AgentTraceEvent through the TrustLayer ingest client."""
     return emit_event(input)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 def trustlayer_guardian_check(input: GuardianCheckInput) -> dict[str, Any]:
     """Forward an event to the cynepic-guardian and return the PASS/FAIL/ESCALATE verdict."""
     return guardian_check(input)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 def trustlayer_hermes_ingest(input: HermesIngestInput) -> dict[str, Any]:
     """Ingest trace events into a Hermes vault and optionally trigger a reflection."""
     return hermes_ingest(input)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 def trustlayer_hermes_get_session(input: HermesGetSessionInput) -> dict[str, Any]:
     """Read back the event list for one (agent_id, session_id) from a Hermes vault."""
     return hermes_get_session(input)
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[untyped-decorator]
 def trustlayer_hermes_reflect(input: HermesReflectInput) -> dict[str, Any]:
     """Run a reflection pass across all known sessions in a Hermes vault."""
     return hermes_reflect(input)

@@ -11,17 +11,17 @@ COPY skills/hermes /src/skills/hermes
 
 ENV PYTHONPATH=/src/skills:/src/sdks/python/src
 
-# Hermes runs as a periodic reflection service. In production you'd
-# schedule this via cron or a sidecar; here we run a simple loop.
+# Hermes periodically ingests the Guardian's shared JSONL trace log and then
+# reflects over the resulting sessions.
 COPY <<'SCRIPT' /usr/local/bin/hermes-loop
 #!/bin/bash
 set -euo pipefail
 
 while true; do
-    echo "[$(date -Iseconds)] Hermes reflection pass"
+    echo "[$(date -Iseconds)] Hermes ingest + reflection pass"
     python3 -m hermes.cli \
         --vault "$TRUSTLAYER_VAULT_PATH" \
-        reflect 2>&1 || true
+        ingest "$TRUSTLAYER_EVENTS_PATH" --reflect 2>&1 || true
     sleep "${HERMES_INTERVAL:-3600}"
 done
 SCRIPT

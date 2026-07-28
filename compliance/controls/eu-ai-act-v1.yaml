@@ -1,0 +1,429 @@
+framework: eu-ai-act
+version: "1.0"
+description: |
+  EU AI Act (Regulation (EU) 2024/1689) - Control Framework for High-Risk AI Systems.
+  This framework covers the key obligations for providers and deployers of high-risk AI systems
+  under Articles 9-15, with additional context from Article 6 (risk classification).
+
+articles:
+  - id: art-6
+    title: "Risk classification rules"
+    description: |
+      Article 6 establishes the risk classification rules. AI systems are classified as:
+      - Prohibited (Art. 5): Unacceptable risk
+      - High-risk (Art. 6 + Annex III): Significant risk to health, safety, or fundamental rights
+      - Limited-risk: Transparency obligations (Art. 52)
+      - Minimal-risk: No specific obligations
+    risk_classes: [prohibited, high-risk, limited-risk, minimal-risk]
+    controls:
+      - id: art-6.1
+        title: "Risk classification assessment"
+        description: |
+          Has the AI system been properly classified according to Article 6 and Annex III?
+          Is the classification documented and justified?
+        evidence_types: [risk_classification_document, annex_iii_assessment]
+        mandatory: true
+        priority: critical
+
+      - id: art-6.2
+        title: "Intended purpose definition"
+        description: |
+          Is the intended purpose of the AI system clearly defined and documented?
+          Does the classification align with the intended purpose?
+        evidence_types: [intended_purpose_statement, use_case_definition]
+        mandatory: true
+        priority: critical
+
+  - id: art-9
+    title: "Risk management system"
+    description: |
+      Article 9 requires providers of high-risk AI systems to establish, implement, document,
+      and maintain a risk management system throughout the entire lifecycle of the AI system.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-9.1
+        title: "Identification and analysis of known and foreseeable risks"
+        description: |
+          Has the provider identified and analyzed known and foreseeable risks related to the
+          high-risk AI system when used in accordance with its intended purpose and under conditions
+          of reasonably foreseeable misuse?
+        evidence_types: [risk_register, risk_assessment, threat_modeling]
+        mandatory: true
+        priority: critical
+
+      - id: art-9.2
+        title: "Estimation and evaluation of risks that may emerge"
+        description: |
+          Has the provider estimated and evaluated the risks that may emerge when the high-risk
+          AI system is used in accordance with its intended purpose and under conditions of
+          reasonably foreseeable misuse?
+        evidence_types: [risk_estimation, risk_evaluation, residual_risk_assessment]
+        mandatory: true
+        priority: critical
+
+      - id: art-9.3
+        title: "Analysis of post-market monitoring data"
+        description: |
+          Does the provider analyze data gathered from the post-market monitoring system referred
+          to in Article 72 to identify risks that may emerge after the AI system has been placed
+          on the market or put into service?
+        evidence_types: [post_market_monitoring_data, incident_reports, feedback_analysis]
+        mandatory: true
+        priority: high
+
+      - id: art-9.4
+        title: "Adoption of suitable risk management measures"
+        description: |
+          Has the provider adopted suitable and targeted risk management measures designed to
+          address the risks identified pursuant to paragraphs 1 and 2?
+        evidence_types: [risk_mitigation_measures, control_implementation]
+        mandatory: true
+        priority: critical
+
+      - id: art-9.5
+        title: "Testing procedures"
+        description: |
+          Has the provider established testing procedures to ensure that the high-risk AI system
+          performs consistently for its intended purpose and is in compliance with the requirements
+          set out in this Chapter? Are the testing procedures proportionate to the risk?
+        evidence_types: [test_plan, test_results, test_coverage_report]
+        mandatory: true
+        priority: critical
+
+      - id: art-9.6
+        title: "Assessment of compliance with requirements"
+        description: |
+          Do the testing procedures assess whether the high-risk AI system complies with the
+          requirements set out in Articles 8 to 15?
+        evidence_types: [compliance_test_results, requirements_traceability_matrix]
+        mandatory: true
+        priority: high
+
+      - id: art-9.7
+        title: "Evaluation of residual risk"
+        description: |
+          Has the provider evaluated the residual risk and determined whether it is acceptable,
+          taking into account the intended purpose and reasonably foreseeable misuse?
+        evidence_types: [residual_risk_evaluation, risk_acceptance_criteria]
+        mandatory: true
+        priority: critical
+
+      - id: art-9.8
+        title: "Documentation of risk management system"
+        description: |
+          Is the risk management system documented and maintained throughout the lifecycle of
+          the AI system?
+        evidence_types: [risk_management_documentation, lifecycle_records]
+        mandatory: true
+        priority: high
+
+  - id: art-10
+    title: "Data and data governance"
+    description: |
+      Article 10 requires that high-risk AI systems which make use of techniques involving the
+      training of models with data shall be developed on the basis of training, validation and
+      testing data sets that meet the quality criteria referred to in paragraphs 2 to 5.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-10.1
+        title: "Training, validation and testing data sets"
+        description: |
+          Are the training, validation and testing data sets subject to appropriate data governance
+          and management practices?
+        evidence_types: [data_governance_policy, dataset_documentation]
+        mandatory: true
+        priority: critical
+
+      - id: art-10.2
+        title: "Data governance and management practices"
+        description: |
+          Do the data governance and management practices concern:
+          (a) the relevant design choices;
+          (b) data collection;
+          (c) relevant data preparation processing operations;
+          (d) formulation of relevant assumptions;
+          (e) a prior assessment of the availability, quantity and suitability of the data sets;
+          (f) examination in view of possible biases;
+          (g) identification of any possible data gaps or shortcomings;
+          (h) compliance with data protection and privacy rules?
+        evidence_types: [data_governance_documentation, data_quality_report]
+        mandatory: true
+        priority: critical
+
+      - id: art-10.3
+        title: "Examination for biases"
+        description: |
+          Have the training, validation and testing data sets been examined in view of possible
+          biases? Are measures in place to detect, prevent and mitigate possible biases?
+        evidence_types: [bias_audit, fairness_metrics, bias_mitigation_measures]
+        mandatory: true
+        priority: critical
+
+      - id: art-10.4
+        title: "Identification of possible data gaps or shortcomings"
+        description: |
+          Have possible data gaps or shortcomings been identified and addressed?
+        evidence_types: [data_gap_analysis, data_quality_assessment]
+        mandatory: true
+        priority: high
+
+      - id: art-10.5
+        title: "Relevance, representativeness, error-free and completeness"
+        description: |
+          Are the training, validation and testing data sets relevant, sufficiently representative,
+          error-free and complete? Do they have the appropriate statistical properties in regard
+          to the persons or groups of persons in relation to whom the high-risk AI system is
+          intended to be used?
+        evidence_types: [data_quality_metrics, representativeness_analysis, statistical_properties_report]
+        mandatory: true
+        priority: critical
+
+  - id: art-11
+    title: "Technical documentation"
+    description: |
+      Article 11 requires that the technical documentation of a high-risk AI system shall be
+      drawn up before that system is placed on the market or put into service and shall be kept
+      up-to-date.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-11.1
+        title: "Technical documentation drawn up before placing on market"
+        description: |
+          Has the technical documentation been drawn up before the high-risk AI system is placed
+          on the market or put into service? Is it kept up-to-date?
+        evidence_types: [technical_documentation, documentation_version_control]
+        mandatory: true
+        priority: critical
+
+      - id: art-11.2
+        title: "Demonstration of compliance with requirements"
+        description: |
+          Does the technical documentation demonstrate that the high-risk AI system complies with
+          the requirements set out in this Chapter and provide national competent authorities and
+          the relevant market surveillance authorities with the necessary information in a clear
+          and comprehensive form to assess the compliance of the AI system with those requirements?
+        evidence_types: [compliance_demonstration, requirements_mapping]
+        mandatory: true
+        priority: critical
+
+      - id: art-11.3
+        title: "Minimum elements of technical documentation (Annex IV)"
+        description: |
+          Does the technical documentation contain at least the information set out in Annex IV?
+          This includes: general description, detailed description of elements and development
+          process, monitoring and functioning, risk management, description of changes, list of
+          harmonized standards, EU declaration of conformity, description of post-market monitoring.
+        evidence_types: [annex_iv_checklist, technical_documentation_completeness]
+        mandatory: true
+        priority: critical
+
+  - id: art-12
+    title: "Record-keeping"
+    description: |
+      Article 12 requires that high-risk AI systems shall technically allow for the automatic
+      recording of events (logs) while the high-risk AI system is operating.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-12.1
+        title: "Automatic recording of events (logs)"
+        description: |
+          Does the high-risk AI system technically allow for the automatic recording of events
+          (logs) while it is operating? Are the logs recorded to ensure an appropriate level of
+          traceability of the functioning of the high-risk AI system throughout its lifecycle?
+        evidence_types: [logging_configuration, log_retention_policy, traceability_documentation]
+        evidence_query:
+          event_types: [AGENT_START, TOOL_CALL, TOOL_RESULT, LLM_CALL, POLICY_CHECK, HUMAN_ESCALATION, AGENT_END]
+          min_count: 1
+        mandatory: true
+        priority: critical
+
+      - id: art-12.2
+        title: "Monitoring of operation and identification of situations"
+        description: |
+          Do the logs enable the monitoring of the operation of the high-risk AI system with
+          respect to the occurrence of situations that may result in the AI system presenting a
+          risk within the meaning of Article 79(1) or lead to a substantial modification?
+        evidence_types: [monitoring_logs, incident_detection_capability]
+        mandatory: true
+        priority: critical
+
+      - id: art-12.3
+        title: "Facilitation of post-market monitoring"
+        description: |
+          Do the logs facilitate the post-market monitoring referred to in Article 72?
+        evidence_types: [post_market_monitoring_logs, monitoring_capability_documentation]
+        mandatory: true
+        priority: high
+
+      - id: art-12.4
+        title: "Minimum logging requirements"
+        description: |
+          Do the logs record at least:
+          (a) the duration of each use of the system;
+          (b) the reference database against which the input data has been checked;
+          (c) the input data for which the search has led to a match;
+          (d) the identification of natural persons involved in the verification of the results?
+        evidence_types: [log_schema_documentation, minimum_logging_compliance]
+        mandatory: true
+        priority: critical
+
+  - id: art-13
+    title: "Transparency and provision of information to deployers"
+    description: |
+      Article 13 requires that high-risk AI systems shall be designed and developed in such a way
+      as to ensure that their operation is sufficiently transparent to enable deployers to
+      interpret the system's output and use it appropriately.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-13.1
+        title: "Sufficient transparency for interpretation"
+        description: |
+          Is the high-risk AI system designed and developed in such a way as to ensure that its
+          operation is sufficiently transparent to enable deployers to interpret the system's
+          output and use it appropriately?
+        evidence_types: [transparency_documentation, interpretability_report]
+        mandatory: true
+        priority: critical
+
+      - id: art-13.2
+        title: "Instructions for use"
+        description: |
+          Are the high-risk AI systems accompanied by instructions for use in an appropriate
+          format, which include concise, complete, correct and clear information that is relevant,
+          accessible and easily understandable by deployers?
+        evidence_types: [instructions_for_use, user_documentation]
+        mandatory: true
+        priority: critical
+
+      - id: art-13.3
+        title: "Information on intended purpose and limitations"
+        description: |
+          Do the instructions for use specify the intended purpose and the limitations of the
+          high-risk AI system, including the conditions under which it can be expected to perform
+          its intended purpose?
+        evidence_types: [intended_purpose_documentation, limitations_disclosure]
+        mandatory: true
+        priority: critical
+
+      - id: art-13.4
+        title: "Information on performance and accuracy"
+        description: |
+          Do the instructions for use provide information on the level of accuracy, robustness
+          and cybersecurity against which the high-risk AI system has been tested and validated
+          and which can be expected?
+        evidence_types: [performance_metrics, accuracy_report, robustness_assessment]
+        mandatory: true
+        priority: high
+
+  - id: art-14
+    title: "Human oversight"
+    description: |
+      Article 14 requires that high-risk AI systems shall be designed and developed in such a way,
+      including with appropriate human-machine interface tools, as to ensure effective human
+      oversight by natural persons.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-14.1
+        title: "Human-machine interface tools for oversight"
+        description: |
+          Are the high-risk AI systems designed and developed in such a way, including with
+          appropriate human-machine interface tools, as to ensure effective human oversight by
+          natural persons?
+        evidence_types: [human_oversight_design, interface_documentation]
+        evidence_query:
+          event_types: [HUMAN_ESCALATION, POLICY_CHECK]
+          payload_filters:
+            result: ESCALATE
+        mandatory: true
+        priority: critical
+
+      - id: art-14.2
+        title: "Measures to enable human oversight"
+        description: |
+          Do the measures referred to in paragraph 1 enable the individuals to whom human oversight
+          is assigned to:
+          (a) properly understand the relevant capacities and limitations of the high-risk AI system;
+          (b) remain aware of the possible tendency of the AI system to produce inaccurate or
+          biased output;
+          (c) correctly interpret the high-risk AI system's output;
+          (d) decide, in any particular situation, not to use the high-risk AI system or otherwise
+          disregard, override or reverse the output of the high-risk AI system;
+          (e) intervene on the functioning of the high-risk AI system or interrupt the system
+          through a "stop" button or a similar procedure?
+        evidence_types: [oversight_measures_documentation, intervention_capability]
+        mandatory: true
+        priority: critical
+
+      - id: art-14.3
+        title: "Proportionality of oversight measures"
+        description: |
+          Are the measures referred to in paragraph 1 proportionate to the risks, the level of
+          autonomy and the context of use of the high-risk AI system?
+        evidence_types: [oversight_proportionality_assessment]
+        mandatory: true
+        priority: high
+
+      - id: art-14.4
+        title: "Assignment of human oversight to natural persons"
+        description: |
+          Is human oversight assigned to natural persons who have the necessary competence,
+          training and authority to carry out that role?
+        evidence_types: [oversight_personnel_qualifications, training_records]
+        mandatory: true
+        priority: high
+
+  - id: art-15
+    title: "Accuracy, robustness and cybersecurity"
+    description: |
+      Article 15 requires that high-risk AI systems shall be designed and developed in such a way
+      that they achieve, in the light of their intended purpose, an appropriate level of accuracy,
+      robustness and cybersecurity, and perform consistently in those respects throughout their
+      lifecycle.
+    risk_classes: [high-risk]
+    controls:
+      - id: art-15.1
+        title: "Appropriate level of accuracy, robustness and cybersecurity"
+        description: |
+          Are the high-risk AI systems designed and developed in such a way that they achieve,
+          in the light of their intended purpose, an appropriate level of accuracy, robustness
+          and cybersecurity, and perform consistently in those respects throughout their lifecycle?
+        evidence_types: [accuracy_metrics, robustness_test_results, cybersecurity_assessment]
+        mandatory: true
+        priority: critical
+
+      - id: art-15.2
+        title: "Levels of accuracy declared"
+        description: |
+          Are the levels of accuracy and the relevant accuracy metrics of the high-risk AI system
+          declared in the accompanying instructions for use?
+        evidence_types: [accuracy_declaration, accuracy_metrics_documentation]
+        mandatory: true
+        priority: high
+
+      - id: art-15.3
+        title: "Resilience to errors, faults or inconsistencies"
+        description: |
+          Are the high-risk AI systems resilient to errors, faults or inconsistencies that may
+          occur within the system itself or due to interaction with natural persons, other systems,
+          or the environment?
+        evidence_types: [resilience_test_results, fault_tolerance_documentation]
+        mandatory: true
+        priority: critical
+
+      - id: art-15.4
+        title: "Technical and organisational measures for cybersecurity"
+        description: |
+          Are the high-risk AI systems protected against unauthorised third-party attempts to
+          alter their use, output or performance, including by exploiting the system's vulnerabilities?
+        evidence_types: [cybersecurity_measures, vulnerability_assessment, penetration_test_results]
+        mandatory: true
+        priority: critical
+
+      - id: art-15.5
+        title: "Measures to prevent and control biases"
+        description: |
+          Are the high-risk AI systems designed and developed with appropriate measures to prevent
+          and control biases that may affect the output of the system?
+        evidence_types: [bias_prevention_measures, bias_control_documentation]
+        mandatory: true
+        priority: high

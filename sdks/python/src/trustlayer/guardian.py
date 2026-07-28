@@ -124,7 +124,7 @@ class GuardianClient:
 
 def _coerce_verdict(data: object) -> Verdict:
     if not isinstance(data, dict):
-        raise ValueError(f"unexpected verdict payload type: {type(data).__name__}")
+        raise TypeError(f"unexpected verdict payload type: {type(data).__name__}")
     decision = data.get("decision")
     if decision not in {"PASS", "FAIL", "ESCALATE"}:
         raise ValueError(f"unexpected verdict decision: {decision!r}")

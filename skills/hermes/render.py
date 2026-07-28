@@ -34,9 +34,7 @@ def render_session_note(events: Sequence[AgentTraceEvent]) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
-def render_reflection_note(
-    reflection: Reflection, summaries: Sequence[SessionSummary]
-) -> str:
+def render_reflection_note(reflection: Reflection, summaries: Sequence[SessionSummary]) -> str:
     front = {
         "date": reflection.date.isoformat(),
         "sessions_summarised": len(summaries),
@@ -59,10 +57,7 @@ def render_reflection_note(
     if reflection.policy_failures:
         parts.append("## Policy failures")
         for entry in reflection.policy_failures:
-            parts.append(
-                f"- `{entry['policy']}` on `{entry['action']}` "
-                f"({entry['count']}x)"
-            )
+            parts.append(f"- `{entry['policy']}` on `{entry['action']}` ({entry['count']}x)")
         parts.append("")
 
     parts.append("## Source sessions")

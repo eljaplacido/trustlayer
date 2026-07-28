@@ -38,9 +38,7 @@ def instrument_tool(
             except Exception as exc:
                 tracer.emit(
                     EventType.TOOL_RESULT,
-                    payload=ToolResultPayload(
-                        tool_name=name, error=repr(exc)
-                    ).model_dump(),
+                    payload=ToolResultPayload(tool_name=name, error=repr(exc)).model_dump(),
                     metrics=Metrics(latency_ms=(time.perf_counter() - start) * 1000),
                 )
                 raise

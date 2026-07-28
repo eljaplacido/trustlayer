@@ -10,3 +10,4 @@ pythonpath = ["..", "../../sdks/python/src"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = ["README.md"]

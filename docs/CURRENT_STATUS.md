@@ -1,7 +1,72 @@
 # Current Status
 
-**Phase:** Phase 6 — Slice 5 closed (pluggable trace store + Postgres backend, retention, secure bind, dashboard visual verification)
+**Phase:** Phase 7 — EU AI Act Compliance Framework (In Progress)
 **Overall Status:** GREEN
+
+## 📝 Latest — Phase 7: EU AI Act Compliance Framework (In Progress)
+Building the compliance layer on top of TrustLayer's evidence layer. This enables
+mapping runtime trace events to regulatory controls (EU AI Act, internal governance
+templates) and generating audit-ready compliance reports.
+
+**What's shipped:**
+- **Control Framework Schema** (`compliance/schemas/control.schema.json`) — JSON Schema
+  for defining machine-readable control catalogs with evidence queries.
+- **System Registry Schema** (`compliance/schemas/system.schema.json`) — JSON Schema for
+  registering AI systems with risk classification, ownership, data classes, human oversight,
+  and TrustLayer integration config.
+- **Aitomation Template** (`compliance/controls/aitomation-template.yaml`) — Machine-readable
+  version of the Aitomation AI Governance & Testing pohja. 9 sections, 30+ controls covering
+  governance model, security, data governance, human oversight, testing, documentation,
+  monitoring, risk register, and release readiness checklist.
+- **EU AI Act Catalog** (`compliance/controls/eu-ai-act-v1.yaml`) — Control catalog covering
+  Articles 6, 9, 10, 11, 12, 13, 14, 15 with 35+ controls for high-risk AI systems.
+- **Evidence Linker** (`compliance/src/evidence_linker.py`) — Python module that queries
+  TrustLayer trace store and matches events to controls based on `evidence_query` definitions.
+  Generates JSON compliance reports with satisfaction rates and gap analysis.
+- **Readiness Scanner** (`compliance/src/readiness_scanner.py`) — CLI tool that scans a
+  project directory and checks readiness against control frameworks. Outputs human-readable
+  summary with PASS/FAIL/GAP status and readiness score. Exit codes for CI/CD integration.
+- **Compliance Dashboard Pane** (`dashboard/src/CompliancePane.tsx`) — Fifth pane in the
+  TrustLayer dashboard showing readiness scores per system, check statuses, progress bars,
+  and summary KPI cards. Reads from pre-generated `compliance-readiness.json`.
+- **Hermes Compliance Graph** (`skills/hermes/compliance_graph.py`) — Generates
+  `07_Compliance/` in the Obsidian vault with wikilinked notes for systems, control
+  articles, and frameworks. 22 notes generated across 2 systems + 2 frameworks.
+- **Audit Package Generator** (`compliance/src/audit_generator.py`) — Generates audit-ready
+  Markdown + JSON packages with system summaries, readiness checks, framework mappings,
+  and overall compliance scoring.
+- **Report Generator** (`compliance/src/report_generator.py`) — Consolidates readiness
+  scanner output from multiple systems into a single dashboard-consumable JSON.
+- **Example System Registry** (`compliance/examples/system.yaml`) — Example AI system
+  registration demonstrating all schema fields.
+- **Documentation** (`compliance/README.md`) — Quick start guide, control framework
+  descriptions, evidence linking explanation, CI/CD integration examples.
+
+**Dogfooded on two live projects:**
+- **agentcenter** (gx10 model benchmarking) — 100% readiness, all 10 checks passed.
+  `system.yaml` at `/home/eljaplacido/Desktop/agentcenter/system.yaml`.
+- **RCCAEF** (regenerative enterprise framework) — 100% readiness, all 10 checks passed.
+  `system.yaml` at `/home/eljaplacido/Desktop/RCCAEF/system.yaml`.
+- Audit package generated at `/tmp/trustlayer-audit-package/` (Markdown + JSON).
+- Obsidian vault: 22 compliance notes under `obsidian_vault/07_Compliance/`.
+- Dashboard: 5th pane (Compliance) typechecks and builds cleanly.
+
+**Hardening (2026-07-28):**
+- Nested `article_50.disclosure_config` / `marking_config` scanner alignment (ADR-016).
+- Go SDK event parity for `DISCLOSURE_SHOWN` / `CONTENT_MARKED` + round-trip tests.
+- Compliance block in `scripts/verify.sh` (ruff + mypy + pytest); CI compliance job.
+- OpenCode `compliance` skill; agent contract skills under `.opencode/skills/`.
+- Local verification: `./scripts/verify.sh test` exit 0.
+
+**Next steps:**
+- [x] Dogfood on active Cursor projects (Route B)
+- [x] Add compliance dashboard pane to TrustLayer dashboard
+- [x] Integrate with Hermes for compliance graph in Obsidian vault
+- [x] Build audit package generator (PDF/markdown export)
+- [x] Add CI/CD integration tests for readiness scanner
+- [x] Production hardening (Route C) — local gate green; schema/scanner/SDK parity
+- [ ] Connect evidence linker to live trace store for runtime compliance evidence
+- [ ] Publish release after green CI + human review
 
 ## 📝 Latest — Phase 6 Slice 5 (Production hardening, ADR-015)
 Closed the three production-readiness limits called out in the release audit:
@@ -115,8 +180,40 @@ The audit slice that takes TrustLayer from "shipped prototype" to "credible open
   - [x] **Slice 4f — Deployment tooling** (shipped 2026-05-30). New `Dockerfile` (multi-stage Rust build for the guardian), `docker/Dockerfile.dashboard` (nginx-served SPA), `docker/Dockerfile.hermes` (periodic reflection loop), `docker-compose.yml` (guardian + dashboard + optional Hermes profile). New `docs/RELEASE.md` — step-by-step release checklist covering version bumps, tag format, package publishing, and post-release tasks.
   - All Phase 6 Slice 4 items complete. Test totals: **309** (Rust 86, Python SDK 49, Hermes 56, MCP 21, TS SDK 33, Dashboard 33, Go 31).
 
+### Phase 7: EU AI Act Compliance Framework (In Progress)
+Building the compliance layer on top of TrustLayer's evidence layer. Maps runtime trace events
+to regulatory controls and generates audit-ready compliance reports.
+
+- [x] **Control Framework Schema** (`compliance/schemas/control.schema.json`) — JSON Schema for defining machine-readable control catalogs with evidence queries.
+- [x] **System Registry Schema** (`compliance/schemas/system.schema.json`) — JSON Schema for registering AI systems with risk classification, ownership, data classes, human oversight, and TrustLayer integration config.
+- [x] **Aitomation Template** (`compliance/controls/aitomation-template.yaml`) — Machine-readable version of the Aitomation AI Governance & Testing pohja. 9 sections, 30+ controls.
+- [x] **EU AI Act Catalog** (`compliance/controls/eu-ai-act-v1.yaml`) — Control catalog covering Articles 6, 9, 10, 11, 12, 13, 14, 15 with 35+ controls for high-risk AI systems.
+- [x] **Evidence Linker** (`compliance/src/evidence_linker.py`) — Python module that queries TrustLayer trace store and matches events to controls. Generates JSON compliance reports.
+- [x] **Readiness Scanner** (`compliance/src/readiness_scanner.py`) — CLI tool that scans project directories and checks readiness against control frameworks. Exit codes for CI/CD.
+- [x] **Example System Registry** (`compliance/examples/system.yaml`) — Example AI system registration.
+- [x] **Documentation** (`compliance/README.md`) — Quick start guide, control framework descriptions, CI/CD integration examples.
+- [x] **Compliance Dashboard Pane** (`dashboard/src/CompliancePane.tsx`) — 5th pane in TrustLayer dashboard. KPI summary bar, per-system readiness scores, progress bars, check detail table. Reads `compliance-readiness.json` from public/.
+- [x] **Hermes Compliance Graph** (`skills/hermes/compliance_graph.py`) — Generates `07_Compliance/` in Obsidian vault. Wikilinked notes: systems, control articles, frameworks. 22 notes generated.
+- [x] **Audit Package Generator** (`compliance/src/audit_generator.py`) — Generates Markdown + JSON audit packages with system summaries, check tables, and overall scoring.
+- [x] **Report Generator** (`compliance/src/report_generator.py`) — Consolidates multiple system reports into dashboard JSON.
+- [x] **Dogfood on agentcenter + RCCAEF** — Both at 100% readiness (10/10 checks passed). `system.yaml` deployed to project roots.
+- [ ] Connect evidence linker to live trace store for runtime compliance evidence
+- [ ] Add CI/CD integration tests for readiness scanner
+- [ ] Production hardening (Route C)
+
 ## 📝 Recent Updates
-- **2026-06-22** (latest): Release hardening pass — full matrix verified locally. All lint/type/fmt gates clean across every layer: `cargo fmt --check`, `cargo clippy --features server --all-targets -- -D warnings`, `mypy` (Python SDK, Hermes, MCP), `ruff` (Python SDK, Hermes, MCP), `tsc --noEmit` (TS SDK, Dashboard). Dashboard accessibility fix: removed `aria-label` on `ReflectionsPane` date buttons so accessible name matches visible text; 33/33 dashboard tests green. Added `py.typed` marker to Hermes package root for downstream type-checking. Fixed `_build_reflector` return type annotation (`object` → `ReflectionEngine`). Test totals: **309** (Rust 86, Python SDK 49, Hermes 56, MCP 21, TS SDK 33, Dashboard 33, Go 31). Platform is green across the board — release-candidate ready.
+- **2026-07-18** (release hardening): Added a cross-harness `AGENTS.md`,
+  project state documents, OpenCode Scout/Plan/Build/Review skills, and the
+  `./scripts/verify.sh` release gate. Compliance YAML is schema validated and
+  covered by seven automated tests plus a dedicated CI job; dashboard coverage
+  now includes the Compliance pane. The committed compliance dashboard report
+  is empty to avoid publishing external project data. A clean-environment CI
+  security job audits dependencies and scans tracked files for common secrets.
+  Remaining release validation depends on GitHub CI and local Go/cargo-audit
+  tool availability.
+- **2026-07-17** (latest): Phase 7 — Dogfooding + Dashboard + Hermes + Audit completed. Readiness scanner tested on two live projects (agentcenter, RCCAEF) — both 100% readiness. 5th dashboard pane (Compliance) shipped: typechecks clean, builds (161 KB gzipped to 50 KB). Hermes compliance graph generates 22 wikilinked Obsidian notes under `07_Compliance/`. Audit package generator produces Markdown + JSON audit output. Scanner now recursively finds tests/docs directories.
+- **2026-07-03**: Phase 7 — EU AI Act Compliance Framework launched. New `compliance/` top-level directory with control framework schemas, EU AI Act and Aitomation template catalogs, evidence linker, and readiness scanner CLI. Readiness scanner tested against example system: 8/10 checks passed, 80% readiness score. Strategy document at `docs/EU_AI_ACT_COMPLIANCE_STRATEGY.md`.
+- **2026-06-22**: Release hardening pass — full matrix verified locally. All lint/type/fmt gates clean across every layer: `cargo fmt --check`, `cargo clippy --features server --all-targets -- -D warnings`, `mypy` (Python SDK, Hermes, MCP), `ruff` (Python SDK, Hermes, MCP), `tsc --noEmit` (TS SDK, Dashboard). Dashboard accessibility fix: removed `aria-label` on `ReflectionsPane` date buttons so accessible name matches visible text; 33/33 dashboard tests green. Added `py.typed` marker to Hermes package root for downstream type-checking. Fixed `_build_reflector` return type annotation (`object` → `ReflectionEngine`). Test totals: **309** (Rust 86, Python SDK 49, Hermes 56, MCP 21, TS SDK 33, Dashboard 33, Go 31). Platform is green across the board — release-candidate ready.
 - **2026-05-25**: Phase 6 Slice 4c landed — OpenTelemetry exporter for the Python SDK. New `trustlayer.otel.OTelExporter` ships one OTel span per `AgentTraceEvent` through the caller's `TracerProvider`; OTel deps are an optional `otel` extra so the base SDK stays stdlib + httpx + pydantic. Attribute naming (`trustlayer.<envelope-field>`, `trustlayer.payload.<dotted-path>`, `trustlayer.metrics.<key>`) is documented as informative interop in spec §5.11. `sdks/python/examples/otel_exporter_demo.py` walks a four-event stream through a `ConsoleSpanExporter` so the wire-up is readable end-to-end. Python SDK tests: **49** (was 33, +16 OTel). Total across the matrix: **297**.
 - **2026-05-25**: Phase 6 Slice 4b landed — Go SDK + v0.1 conformance fixtures. ADR-011 captures the design (stdlib + `google/uuid`, `context.Context` first, JSON strictness via custom `UnmarshalJSON` that mirrors `extra="forbid"` / `.strict()` / `deny_unknown_fields`). New `sdks/go/trustlayer/` package + `examples/conformance` and `examples/end_to_end_demo`. Cross-language: the Rust core's `cross_language.rs` loads the Go-emitted fixture at `spec/v0.1/fixtures/event-canonical-go.json` and asserts wire-format parity end-to-end. CI matrix gains Go 1.22 + 1.23 jobs. Test totals: **281** (Rust 86 = +1 Go-fixture cross-language; Python SDK 33; Hermes 44; MCP 21; TS SDK 33; Dashboard 33; **Go 31** new).
 - **2026-05-25**: Phase 6 Slice 4a landed — formal v0.1 spec. New top-level `spec/` tree with a frozen `v0.1/` directory holding six normative documents and a README index. ADR-010 records the layout decision. `README.md`, `docs/SCHEMA.md`, and `docs/VERSIONING.md` now point at the spec as the citable source of truth and demote themselves to "implementation mirror" status for the same wire format. No code change — **244 tests** still green; the spec freezes the contract every existing test already enforces.

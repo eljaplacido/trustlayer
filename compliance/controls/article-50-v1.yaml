@@ -1,0 +1,138 @@
+framework: article-50
+version: "1.0"
+description: |
+  EU AI Act Article 50 - Transparency Obligations.
+  This framework covers the transparency requirements for AI systems interacting with humans,
+  AI systems operating on emotion recognition or biometric categorisation, and providers
+  of AI systems that generate synthetic AI content (deepfakes).
+  Applies to high-risk, limited-risk, and prohibited AI systems where relevant.
+
+articles:
+  - id: art-50.1
+    title: "Transparency obligation in the case of interaction with humans"
+    description: |
+      Deployers of an AI system intended to interact with natural persons shall ensure that
+      natural persons are informed that they are interacting with an AI system, unless this
+      is obvious from the point of view of a natural person.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: art-50.1.1
+        title: "Disclosure of AI interaction"
+        description: |
+          Is the natural person being informed that they are interacting with an AI system?
+          This can be achieved through visible disclosure, audio notification, or system metadata.
+        evidence_types: [disclosure_mechanism_documentation, user_notification_config]
+        evidence_query:
+          event_types: [DISCLOSURE_SHOWN]
+          min_count: 1
+        mandatory: true
+        priority: critical
+
+      - id: art-50.1.2
+        title: "Timing of disclosure"
+        description: |
+          Is the disclosure provided to the natural person before or during the initial
+          interaction with the AI system?
+        evidence_types: [disclosure_timing_policy, interaction_log]
+        mandatory: true
+        priority: high
+
+      - id: art-50.1.3
+        title: "Clarity and accessibility of disclosure"
+        description: |
+          Is the disclosure clear, concise, and easily understandable by the natural person?
+        evidence_types: [disclosure_text_review, accessibility_compliance]
+        mandatory: true
+        priority: high
+
+  - id: art-50.2
+    title: "Transparency obligation in the case of emotion recognition and biometric categorisation systems"
+    description: |
+      Deployers of an emotion recognition or biometric categorisation AI system shall:
+      (a) inform the natural persons concerned about the operation;
+      (b) obtain consent unless otherwise provided by Union or Member State law.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: art-50.2.1
+        title: "Notification of emotion recognition"
+        description: |
+          Are natural persons being informed when emotion recognition is being performed?
+        evidence_types: [emotion_recognition_disclosure, user_notification]
+        evidence_query:
+          event_types: [DISCLOSURE_SHOWN]
+          payload_filters:
+            disclosure_type: emotion_recognition
+        mandatory: true
+        priority: critical
+
+      - id: art-50.2.2
+        title: "Notification of biometric categorisation"
+        description: |
+          Are natural persons being informed when biometric categorisation is being performed?
+        evidence_types: [biometric_disclosure, user_notification]
+        evidence_query:
+          event_types: [DISCLOSURE_SHOWN]
+          payload_filters:
+            disclosure_type: biometric_classification
+        mandatory: true
+        priority: critical
+
+      - id: art-50.2.3
+        title: "Consent mechanism"
+        description: |
+          Is appropriate consent obtained from natural persons, unless otherwise provided by
+          Union or Member State law?
+        evidence_types: [consent_log, legal_basis_documentation]
+        mandatory: true
+        priority: critical
+
+  - id: art-50.3
+    title: "Transparency obligation in the case of providers of AI systems that generate synthetic content"
+    description: |
+      Providers of AI systems that generate synthetic AI content, including audio, text, images,
+      video, or other content that exists and exists or did not exist and did not previously exist
+      before it was made artificially by the system (deepfakes), shall:
+      (a) design and develop AI systems in such a way that synthetic content is artificially
+          and visibly labelled as artificially encoded and manifestly AI-generated or manipulated;
+      (b) include unobtrusive post or other content elements such that the content is rendered
+          effectively undetectable by default as AI-generated or manipulated content.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: art-50.3.1
+        title: "Machine-readable labelling of generated content"
+        description: |
+          Is the synthetic content artificially and visibly labelled as AI-generated or manipulated?
+        evidence_types: [content_labelling_specification, marking_implementation]
+        evidence_query:
+          event_types: [CONTENT_MARKED]
+          min_count: 1
+        mandatory: true
+        priority: critical
+
+      - id: art-50.3.2
+        title: "Deepfake disclosure"
+        description: |
+          Are deepfakes disclosed with a clear notice that the content has been artificially
+          created or manipulated?
+        evidence_types: [deepfake_disclosure_mechanism, user_notice]
+        mandatory: true
+        priority: critical
+
+      - id: art-50.3.3
+        title: "Prohibition of undetectable AI content"
+        description: |
+          Are unobtrusive post or other content elements that render AI-generated content
+          effectively undetectable avoided by design?
+        evidence_types: [design_documentation, security_review]
+        mandatory: true
+        priority: critical
+
+      - id: art-50.3.4
+        title: "Public interest text disclosure"
+        description: |
+          For AI-generated or manipulated text content that relates to a matter of public
+          interest, is the source of the text disclosed and are the AI generation processes
+          transparently described?
+        evidence_types: [public_interest_disclosure_policy, source_attribution]
+        mandatory: true
+        priority: high

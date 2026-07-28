@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from datetime import date as DateType
-from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from trustlayer.schema import AgentTraceEvent, EventType, PolicyCheckResult
@@ -24,7 +24,7 @@ class SessionSummary:
     event_count: int
     started_at: datetime
     ended_at: datetime
-    tools_used: Counter = field(default_factory=Counter)
+    tools_used: Counter[str] = field(default_factory=Counter)
     policy_failures: list[dict[str, Any]] = field(default_factory=list)
     total_latency_ms: float = 0.0
     error_count: int = 0
@@ -50,14 +50,9 @@ class SessionSummary:
             parts.append(f"errors={self.error_count}")
         if self.policy_failures:
             tags = ", ".join(
-                f"{p.get('policy', '?')}:{p.get('action', '?')}"
-                for p in self.policy_failures[:3]
+                f"{p.get('policy', '?')}:{p.get('action', '?')}" for p in self.policy_failures[:3]
             )
-            extra = (
-                f" +{len(self.policy_failures) - 3}"
-                if len(self.policy_failures) > 3
-                else ""
-            )
+            extra = f" +{len(self.policy_failures) - 3}" if len(self.policy_failures) > 3 else ""
             parts.append(f"policy_fail[{tags}{extra}]")
         out = " | ".join(parts)
         if len(out) > max_chars:
@@ -74,21 +69,15 @@ class Reflection:
 
 
 class ReflectionEngine(Protocol):
-    def summarise_session(
-        self, events: Sequence[AgentTraceEvent]
-    ) -> SessionSummary: ...
+    def summarise_session(self, events: Sequence[AgentTraceEvent]) -> SessionSummary: ...
 
-    def synthesise(
-        self, summaries: Sequence[SessionSummary]
-    ) -> Reflection: ...
+    def synthesise(self, summaries: Sequence[SessionSummary]) -> Reflection: ...
 
 
 class DeterministicReflector:
     """Structural reflection that needs no model inference."""
 
-    def summarise_session(
-        self, events: Sequence[AgentTraceEvent]
-    ) -> SessionSummary:
+    def summarise_session(self, events: Sequence[AgentTraceEvent]) -> SessionSummary:
         if not events:
             raise ValueError("Cannot summarise an empty session.")
         head = events[0]
@@ -121,11 +110,9 @@ class DeterministicReflector:
                 summary.total_latency_ms += evt.metrics.latency_ms
         return summary
 
-    def synthesise(
-        self, summaries: Sequence[SessionSummary]
-    ) -> Reflection:
-        all_tools: Counter = Counter()
-        all_policy_failures: Counter = Counter()
+    def synthesise(self, summaries: Sequence[SessionSummary]) -> Reflection:
+        all_tools: Counter[str] = Counter()
+        all_policy_failures: Counter[tuple[str, str]] = Counter()
         total_events = 0
         total_errors = 0
         total_latency = 0.0
@@ -148,7 +135,7 @@ class DeterministicReflector:
             "total_latency_ms": round(total_latency, 2),
         }
         return Reflection(
-            date=datetime.now(timezone.utc).date(),
+            date=datetime.now(UTC).date(),
             headline_metrics=headline,
             top_tools=all_tools.most_common(10),
             policy_failures=[

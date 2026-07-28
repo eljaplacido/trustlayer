@@ -157,3 +157,50 @@ fn parses_go_emitted_conformance_fixture() {
         Some("gpt-4")
     );
 }
+
+/// New EU AI Act Art. 50 event types must round-trip across all three SDKs.
+#[test]
+fn parses_disclosure_shown_event() {
+    const RAW: &str = r#"{
+        "trace_id": "55555555-5555-4555-8555-555555555555",
+        "agent_id": "art50-agent",
+        "session_id": "S50",
+        "timestamp": "2026-07-03T10:00:00+00:00",
+        "event_type": "DISCLOSURE_SHOWN",
+        "cynefin_domain": "CLEAR",
+        "payload": {"disclosure_type": "human-facing", "target_audience": "user"},
+        "metrics": {}
+    }"#;
+    let event: AgentTraceEvent = serde_json::from_str(RAW).expect("parse DISCLOSURE_SHOWN");
+    assert_eq!(event.event_type, EventType::DisclosureShown);
+    assert_eq!(event.cynefin_domain, CynefinDomain::Clear);
+}
+
+#[test]
+fn parses_content_marked_event() {
+    const RAW: &str = r#"{
+        "trace_id": "66666666-6666-4666-8666-666666666666",
+        "agent_id": "art50-agent",
+        "session_id": "S51",
+        "timestamp": "2026-07-03T10:01:00+00:00",
+        "event_type": "CONTENT_MARKED",
+        "cynefin_domain": "CLEAR",
+        "payload": {"marking_type": "deepfake", "confidence": 0.95},
+        "metrics": {}
+    }"#;
+    let event: AgentTraceEvent = serde_json::from_str(RAW).expect("parse CONTENT_MARKED");
+    assert_eq!(event.event_type, EventType::ContentMarked);
+    assert_eq!(event.cynefin_domain, CynefinDomain::Clear);
+}
+
+#[test]
+fn new_event_types_serialise_screaming_snake_case() {
+    assert_eq!(
+        serde_json::to_string(&EventType::DisclosureShown).unwrap(),
+        "\"DISCLOSURE_SHOWN\""
+    );
+    assert_eq!(
+        serde_json::to_string(&EventType::ContentMarked).unwrap(),
+        "\"CONTENT_MARKED\""
+    );
+}

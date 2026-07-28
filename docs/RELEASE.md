@@ -11,6 +11,10 @@ This document describes how to tag and publish TrustLayer releases.
 - [ ] `mypy` + `ruff` clean on all Python packages
 - [ ] `tsc --noEmit` clean on TypeScript packages
 - [ ] `go vet ./...` clean on Go SDK
+- [ ] Compliance tooling tests and schema validation clean
+- [ ] Dependency and secret-hygiene CI job green
+- [ ] No generated compliance report, audit package, trace, or system registry
+  from a third-party environment is committed without an explicit data review
 - [ ] Any schema changes are mirrored across Python / TypeScript / Rust
   / Go and have a cross-language round-trip test
 - [ ] `docs/SCHEMA.md` matches the current wire-format version
@@ -18,6 +22,8 @@ This document describes how to tag and publish TrustLayer releases.
 - [ ] New architectural decisions have ADRs in
   `obsidian_vault/01_Architecture/`
 - [ ] `docs/CURRENT_STATUS.md` reflects the latest phase/slice status
+- [ ] `docs/SECURITY.md` deployment baseline has been reviewed for the target
+  environment
 
 ## Wire-format versioning
 

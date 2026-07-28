@@ -1,0 +1,119 @@
+{
+  "generated_at": "2026-07-28T12:10:22.383177+00:00",
+  "generator_version": "0.1.0",
+  "systems": [
+    {
+      "system_id": "example-invoice-assistant",
+      "system_name": "Invoice Processing Assistant",
+      "checks": [
+        {
+          "check_id": "system-registry",
+          "check_title": "System Registry",
+          "status": "PASS",
+          "details": "System registry found: Invoice Processing Assistant",
+          "priority": "critical"
+        },
+        {
+          "check_id": "risk-classification",
+          "check_title": "Risk Classification",
+          "status": "PASS",
+          "details": "Risk class: high-risk",
+          "priority": "critical"
+        },
+        {
+          "check_id": "intended-purpose",
+          "check_title": "Intended Purpose",
+          "status": "PASS",
+          "details": "Intended purpose or approved use cases defined",
+          "priority": "critical"
+        },
+        {
+          "check_id": "ownership",
+          "check_title": "Ownership",
+          "status": "PASS",
+          "details": "Business: Finance Director, Technical: Lead Developer",
+          "priority": "high"
+        },
+        {
+          "check_id": "data-classification",
+          "check_title": "Data Classification",
+          "status": "PASS",
+          "details": "Data classes: personal_data, financial_data",
+          "priority": "critical"
+        },
+        {
+          "check_id": "trace-integration",
+          "check_title": "Trace Integration",
+          "status": "PASS",
+          "details": "Agent ID: invoice-processing-agent",
+          "priority": "high"
+        },
+        {
+          "check_id": "guardian-policy",
+          "check_title": "Guardian Policy",
+          "status": "PASS",
+          "details": "Policy: finance-high-risk",
+          "priority": "high"
+        },
+        {
+          "check_id": "human-oversight",
+          "check_title": "Human Oversight",
+          "status": "PASS",
+          "details": "Type: human-in-the-loop, Approval points: 3",
+          "priority": "critical"
+        },
+        {
+          "check_id": "documentation",
+          "check_title": "Documentation",
+          "status": "GAP",
+          "details": "No standard documentation files found",
+          "priority": "high"
+        },
+        {
+          "check_id": "testing",
+          "check_title": "Testing",
+          "status": "GAP",
+          "details": "No test directory found",
+          "priority": "high"
+        },
+        {
+          "check_id": "art-50.1",
+          "check_title": "Art 50.1: AI Interaction Disclosure",
+          "status": "PASS",
+          "details": "AI interaction disclosure enabled",
+          "priority": "critical"
+        },
+        {
+          "check_id": "art-50.2",
+          "check_title": "Art 50.2: Biometric/Emotion Disclosure",
+          "status": "SKIP",
+          "details": "No biometric/emotion recognition in scope",
+          "priority": "medium"
+        },
+        {
+          "check_id": "art-50.3",
+          "check_title": "Art 50.3: Content Marking",
+          "status": "PASS",
+          "details": "Machine-readable content marking enabled",
+          "priority": "critical"
+        }
+      ],
+      "summary": {
+        "total_checks": 13,
+        "passed": 10,
+        "failed": 0,
+        "gaps": 2,
+        "skipped": 1,
+        "readiness_score_percent": 83.33
+      }
+    }
+  ],
+  "overall_summary": {
+    "total_systems": 1,
+    "total_controls": 13,
+    "total_passed": 10,
+    "total_failed": 0,
+    "total_gaps": 2,
+    "overall_readiness_percent": 76.92
+  }
+}

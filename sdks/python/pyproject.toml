@@ -65,6 +65,7 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = ["README.md"]
 
 [tool.mypy]
 python_version = "3.11"

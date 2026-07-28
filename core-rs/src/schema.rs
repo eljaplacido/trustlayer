@@ -21,6 +21,8 @@ pub enum EventType {
     PolicyCheck,
     HumanEscalation,
     AgentEnd,
+    DisclosureShown,
+    ContentMarked,
 }
 
 /// Cynefin classification of the decision context.

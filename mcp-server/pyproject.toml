@@ -38,8 +38,14 @@ pythonpath = ["src", "../sdks/python/src", "../skills"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = ["README.md"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 files = ["src/trustlayer_mcp"]
+mypy_path = ["../sdks/python/src", "../skills"]
+[[tool.mypy.overrides]]
+module = ["mcp.*"]
+ignore_missing_imports = true
+follow_imports = "skip"

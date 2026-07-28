@@ -4,16 +4,13 @@ import json
 from pathlib import Path
 
 import pytest
-
 from hermes.cli import main as cli_main
 from hermes.code_graph import CodeGraphImporter
 
 
 def _write_graph(root: Path, nodes: list[dict], edges: list[dict]) -> None:
     root.mkdir(parents=True, exist_ok=True)
-    (root / "graph.json").write_text(
-        json.dumps({"nodes": nodes, "edges": edges}), encoding="utf-8"
-    )
+    (root / "graph.json").write_text(json.dumps({"nodes": nodes, "edges": edges}), encoding="utf-8")
 
 
 def _read(path: Path) -> str:

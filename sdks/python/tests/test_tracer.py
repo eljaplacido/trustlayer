@@ -28,9 +28,8 @@ def test_tracer_emits_call_and_result() -> None:
 def test_tracer_records_error_and_reraises() -> None:
     captured: list[dict] = []
     tracer = Tracer(agent_id="a", session_id="s", client=_capture_client(captured))
-    with pytest.raises(ValueError):
-        with tracer.tool_call("boom"):
-            raise ValueError("nope")
+    with pytest.raises(ValueError), tracer.tool_call("boom"):
+        raise ValueError("nope")
     assert captured[-1]["event_type"] == "TOOL_RESULT"
     assert "ValueError" in captured[-1]["payload"]["error"]
     assert captured[-1]["payload"].get("result") is None
@@ -66,9 +65,7 @@ def _guardian(decision: str, **extra: object) -> GuardianClient:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=body)
 
-    return GuardianClient(
-        transport=httpx.MockTransport(handler), policy_name="default"
-    )
+    return GuardianClient(transport=httpx.MockTransport(handler), policy_name="default")
 
 
 def test_check_emits_tool_call_then_policy_check_and_returns_verdict() -> None:
@@ -125,9 +122,7 @@ def test_check_forwards_explicit_policy_name_to_guardian() -> None:
             json={"decision": "PASS", "rule": None, "reason": None, "policy": "alt"},
         )
 
-    guardian = GuardianClient(
-        transport=httpx.MockTransport(handler), policy_name="default"
-    )
+    guardian = GuardianClient(transport=httpx.MockTransport(handler), policy_name="default")
     tracer = Tracer(agent_id="a", session_id="s", client=_capture_client([]))
     tracer.check("calc", {}, guardian=guardian, policy_name="alt")
     assert captured_requests[0]["policy_name"] == "alt"

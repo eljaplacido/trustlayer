@@ -20,9 +20,7 @@ from .reflector import ReflectionEngine
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Hermes — TrustLayer memory subagent."
-    )
+    parser = argparse.ArgumentParser(description="Hermes — TrustLayer memory subagent.")
     parser.add_argument(
         "--vault",
         required=True,
@@ -53,9 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ingest = sub.add_parser("ingest", help="Ingest a JSONL feed of trace events.")
-    p_ingest.add_argument(
-        "jsonl", help="Path to a JSONL file of AgentTraceEvent records."
-    )
+    p_ingest.add_argument("jsonl", help="Path to a JSONL file of AgentTraceEvent records.")
     p_ingest.add_argument(
         "--reflect",
         action="store_true",

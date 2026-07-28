@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-
 from trustlayer.schema import (
     AgentTraceEvent,
     CynefinDomain,
@@ -25,7 +24,7 @@ def make_event():
     Each call advances a monotonically increasing trace_id for stable
     ordering in tests.
     """
-    base = datetime(2026, 5, 7, 9, 0, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 5, 7, 9, 0, 0, tzinfo=UTC)
     counter = {"i": 0}
 
     def _build(
@@ -61,9 +60,7 @@ def sample_session(make_event) -> list[AgentTraceEvent]:
         make_event(event_type=EventType.AGENT_START, payload={"goal": "answer math"}),
         make_event(
             event_type=EventType.TOOL_CALL,
-            payload=ToolCallPayload(
-                tool_name="calculator", tool_args={"expr": "2+2"}
-            ).model_dump(),
+            payload=ToolCallPayload(tool_name="calculator", tool_args={"expr": "2+2"}).model_dump(),
         ),
         make_event(
             event_type=EventType.TOOL_RESULT,
@@ -72,9 +69,7 @@ def sample_session(make_event) -> list[AgentTraceEvent]:
         ),
         make_event(
             event_type=EventType.TOOL_CALL,
-            payload=ToolCallPayload(
-                tool_name="calculator", tool_args={"expr": "1/0"}
-            ).model_dump(),
+            payload=ToolCallPayload(tool_name="calculator", tool_args={"expr": "1/0"}).model_dump(),
         ),
         make_event(
             event_type=EventType.TOOL_RESULT,

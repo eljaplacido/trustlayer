@@ -55,11 +55,16 @@ services:
     build:
       context: ./dashboard
       dockerfile: ../docker/Dockerfile.dashboard
+      args:
+        VITE_TRUSTLAYER_BASE_URL: "${VITE_TRUSTLAYER_BASE_URL:-http://localhost:8089}"
+        VITE_TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
     ports:
       - "${DASHBOARD_PORT:-5173}:80"
     environment:
       VITE_TRUSTLAYER_BASE_URL: "${VITE_TRUSTLAYER_BASE_URL:-http://localhost:8089}"
       VITE_TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
+    volumes:
+      - "${TRUSTLAYER_COMPLIANCE_REPORT:-./dashboard/public/compliance-readiness.json}:/usr/share/nginx/html/compliance-readiness.json:ro"
     restart: unless-stopped
     depends_on:
       guardian:
@@ -73,6 +78,7 @@ services:
     environment:
       TRUSTLAYER_GUARDIAN_URL: "http://guardian:8089"
       TRUSTLAYER_VAULT_PATH: /data/vault
+      TRUSTLAYER_EVENTS_PATH: /data/events.jsonl
       TRUSTLAYER_API_TOKEN: "${TRUSTLAYER_API_TOKEN:-}"
     volumes:
       - trustlayer_data:/data

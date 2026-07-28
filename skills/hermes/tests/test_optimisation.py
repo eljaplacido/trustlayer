@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
-
 
 from hermes.hermes_agent import HermesAgent
 from hermes.reflector import DeterministicReflector
 from trustlayer.schema import EventType
-
 
 # -- Payload truncation -------------------------------------------------
 
@@ -170,15 +169,16 @@ def test_session_events_falls_back_to_sidecar(tmp_path: Path, sample_session):
     agent = HermesAgent(tmp_path, max_cached_sessions=1)
     agent.ingest(sample_session)
     # Force eviction by ingesting a new session.
-    from trustlayer.schema import AgentTraceEvent, EventType, Metrics
-    from datetime import datetime, timezone
+    from datetime import datetime
     from uuid import uuid4
+
+    from trustlayer.schema import AgentTraceEvent, EventType, Metrics
 
     other = AgentTraceEvent(
         trace_id=uuid4(),
         agent_id="other",
         session_id="x",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         event_type=EventType.AGENT_START,
         payload={},
         metrics=Metrics(),

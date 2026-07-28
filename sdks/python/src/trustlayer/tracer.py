@@ -75,9 +75,7 @@ class Tracer:
         """
         self.emit(
             EventType.TOOL_CALL,
-            payload=ToolCallPayload(
-                tool_name=tool_name, tool_args=tool_args or {}
-            ).model_dump(),
+            payload=ToolCallPayload(tool_name=tool_name, tool_args=tool_args or {}).model_dump(),
         )
         start = time.perf_counter()
         out: dict[str, Any] = {}
@@ -86,17 +84,13 @@ class Tracer:
         except Exception as exc:
             self.emit(
                 EventType.TOOL_RESULT,
-                payload=ToolResultPayload(
-                    tool_name=tool_name, error=repr(exc)
-                ).model_dump(),
+                payload=ToolResultPayload(tool_name=tool_name, error=repr(exc)).model_dump(),
                 metrics=Metrics(latency_ms=(time.perf_counter() - start) * 1000),
             )
             raise
         self.emit(
             EventType.TOOL_RESULT,
-            payload=ToolResultPayload(
-                tool_name=tool_name, result=out.get("value")
-            ).model_dump(),
+            payload=ToolResultPayload(tool_name=tool_name, result=out.get("value")).model_dump(),
             metrics=Metrics(latency_ms=(time.perf_counter() - start) * 1000),
         )
 
@@ -138,9 +132,7 @@ class Tracer:
         """
         candidate = self.emit(
             EventType.TOOL_CALL,
-            payload=ToolCallPayload(
-                tool_name=tool_name, tool_args=tool_args or {}
-            ).model_dump(),
+            payload=ToolCallPayload(tool_name=tool_name, tool_args=tool_args or {}).model_dump(),
             cynefin_domain=cynefin_domain,
         )
         verdict = guardian.check(candidate, policy_name=policy_name)

@@ -1,0 +1,63 @@
+system:
+  id: example-invoice-assistant
+  name: "Invoice Processing Assistant"
+  description: |
+    AI-powered assistant for processing customer invoices.
+    Extracts data from PDFs, validates against business rules,
+    and routes for human approval.
+  provider_role: deployer
+  risk_class: high-risk
+  domain: finance
+  owner:
+    business: "Finance Director"
+    technical: "Lead Developer"
+    security: "CISO"
+  data_classes:
+    - personal_data
+    - financial_data
+  approved_use_cases:
+    - "Extract invoice data from PDFs for accounting review"
+    - "Validate invoice amounts against purchase orders"
+    - "Route invoices for approval based on amount thresholds"
+  restricted_use_cases:
+    - "Must not auto-approve invoices without human review"
+    - "Must not access HR or payroll data"
+    - "Must not make payment decisions autonomously"
+  human_oversight:
+    type: human-in-the-loop
+    approval_points:
+      - "Invoice amount > 5000 EUR"
+      - "New vendor not in approved list"
+      - "Invoice date > 90 days old"
+    fallback_mechanism: "Manual processing queue for system failures"
+  integration:
+    agent_id: "invoice-processing-agent"
+    session_id_pattern: "invoice-*"
+    guardian_policy: "finance-high-risk"
+    trace_store_url: "http://127.0.0.1:8089"
+  controls:
+    frameworks:
+      - eu-ai-act
+      - aitomation-template
+    overrides:
+      art-10.3:
+        mandatory: true
+        notes: "Bias audit required quarterly due to financial impact"
+  article_50:
+    enabled: true
+    disclosure_config:
+      disclose_ai_interaction: true
+      disclose_emotion_recognition: false
+      disclose_biometric_classification: false
+    marking_config:
+      mark_generated_content: true
+      deepfake_disclosure: false
+      public_interest_disclosure: false
+  metadata:
+    created_at: "2026-07-03T10:00:00+00:00"
+    updated_at: "2026-07-03T10:00:00+00:00"
+    version: "1.0"
+    tags:
+      - finance
+      - invoice-processing
+      - high-risk

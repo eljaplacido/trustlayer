@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hermes.reflector import DeterministicReflector, Reflection, SessionSummary
 
 
@@ -37,9 +36,7 @@ def test_synthesise_aggregates_across_sessions(make_event, sample_session):
     # Re-tag the second event as TOOL_CALL so the reflector counts it.
     from trustlayer.schema import EventType
 
-    extra_session[1] = extra_session[1].model_copy(
-        update={"event_type": EventType.TOOL_CALL}
-    )
+    extra_session[1] = extra_session[1].model_copy(update={"event_type": EventType.TOOL_CALL})
 
     reflector = DeterministicReflector()
     summaries = [

@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trustlayer.ai/schemas/system-registry.json",
+  "title": "AI System Registry Schema",
+  "description": "Schema for registering AI systems in the compliance registry",
+  "type": "object",
+  "required": ["system"],
+  "properties": {
+    "system": {
+      "type": "object",
+      "required": ["id", "name", "provider_role", "risk_class"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AI system (e.g., 'customer-x-invoice-assistant')"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the AI system"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what the system does"
+        },
+        "provider_role": {
+          "type": "string",
+          "enum": ["provider", "deployer", "importer", "distributor"],
+          "description": "Role under EU AI Act (Art. 3)"
+        },
+        "risk_class": {
+          "type": "string",
+          "enum": ["prohibited", "high-risk", "limited-risk", "minimal-risk"],
+          "description": "Risk classification under EU AI Act (Art. 6)"
+        },
+        "domain": {
+          "type": "string",
+          "description": "Business domain (e.g., 'finance', 'healthcare', 'hr')"
+        },
+        "owner": {
+          "type": "object",
+          "description": "Ownership and responsibility",
+          "properties": {
+            "business": {
+              "type": "string",
+              "description": "Business owner name/role"
+            },
+            "technical": {
+              "type": "string",
+              "description": "Technical owner name/role"
+            },
+            "security": {
+              "type": "string",
+              "description": "Security/compliance owner name/role"
+            }
+          }
+        },
+        "data_classes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["personal_data", "sensitive_personal_data", "financial_data", "health_data", "biometric_data", "public_data", "proprietary_data"]
+          },
+          "description": "Types of data processed by the system"
+        },
+        "approved_use_cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of approved use cases"
+        },
+        "restricted_use_cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of restricted/prohibited use cases"
+        },
+        "human_oversight": {
+          "type": "object",
+          "description": "Human oversight configuration (Art. 14)",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["human-in-the-loop", "human-on-the-loop", "human-in-command", "none"],
+              "description": "Type of human oversight"
+            },
+            "approval_points": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Points where human approval is required"
+            },
+            "fallback_mechanism": {
+              "type": "string",
+              "description": "Description of fallback/override mechanism"
+            }
+          }
+        },
+        "integration": {
+          "type": "object",
+          "description": "Integration with TrustLayer",
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "description": "Agent ID used in trace events"
+            },
+            "session_id_pattern": {
+              "type": "string",
+              "description": "Pattern for session IDs (e.g., 'invoice-*')"
+            },
+            "guardian_policy": {
+              "type": "string",
+              "description": "Name of Guardian policy file to use"
+            },
+            "trace_store_url": {
+              "type": "string",
+              "description": "URL of TrustLayer trace store"
+            }
+          }
+        },
+        "controls": {
+          "type": "object",
+          "description": "Control framework assignments",
+          "properties": {
+            "frameworks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of control frameworks to apply (e.g., ['eu-ai-act', 'aitomation-template'])"
+            },
+            "overrides": {
+              "type": "object",
+              "description": "Control-specific overrides (control_id -> override config)"
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional metadata",
+          "properties": {
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "version": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "article_50": {
+          "type": "object",
+          "description": "EU AI Act Article 50 transparency configuration (optional — required for systems falling under Art. 50 scope)",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether Art. 50 transparency controls are active"
+            },
+            "disclosure_config": {
+              "type": "object",
+              "description": "Disclosure configuration for human-facing interactions",
+              "properties": {
+                "disclose_ai_interaction": {
+                  "type": "boolean",
+                  "description": "Always disclose AI interaction to users"
+                },
+                "disclose_emotion_recognition": {
+                  "type": "boolean",
+                  "description": "Disclose emotion recognition capabilities"
+                },
+                "disclose_biometric_classification": {
+                  "type": "boolean",
+                  "description": "Disclose biometric classification capabilities"
+                }
+              }
+            },
+            "marking_config": {
+              "type": "object",
+              "description": "Machine-readable marking configuration",
+              "properties": {
+                "mark_generated_content": {
+                  "type": "boolean",
+                  "description": "Apply machine-readable markings to generated content"
+                },
+                "deepfake_disclosure": {
+                  "type": "boolean",
+                  "description": "Disclose synthetic/deepfake content"
+                },
+                "public_interest_disclosure": {
+                  "type": "boolean",
+                  "description": "Disclose AI-generated content in public interest domains"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trustlayer.ai/schemas/control-framework.json",
+  "title": "Control Framework Schema",
+  "description": "Schema for defining control frameworks (EU AI Act, internal templates, etc.)",
+  "type": "object",
+  "required": ["framework", "version", "articles"],
+  "properties": {
+    "framework": {
+      "type": "string",
+      "description": "Name of the control framework (e.g., 'eu-ai-act', 'aitomation-template')"
+    },
+    "version": {
+      "type": "string",
+      "description": "Version of the framework definition"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the framework"
+    },
+    "articles": {
+      "type": "array",
+      "description": "List of articles/sections in the framework",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "controls"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the article (e.g., 'art-9', 'section-3.1')"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the article/section"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of what this article covers"
+          },
+          "risk_classes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["prohibited", "high-risk", "limited-risk", "minimal-risk"]
+            },
+            "description": "Which risk classes this article applies to"
+          },
+          "controls": {
+            "type": "array",
+            "description": "Specific controls within this article",
+            "items": {
+              "type": "object",
+              "required": ["id", "title"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Unique control identifier (e.g., 'art-9.1')"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Title of the control"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Detailed description of what this control requires"
+                },
+                "evidence_types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Types of evidence that can satisfy this control (e.g., 'trace_event', 'policy_check', 'human_approval')"
+                },
+                "evidence_query": {
+                  "type": "object",
+                  "description": "Query to find evidence in trace store",
+                  "properties": {
+                    "event_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["AGENT_START", "TOOL_CALL", "TOOL_RESULT", "LLM_CALL", "POLICY_CHECK", "HUMAN_ESCALATION", "AGENT_END"]
+                      }
+                    },
+                    "payload_filters": {
+                      "type": "object",
+                      "description": "Filters on event payload (e.g., {'result': 'FAIL'})"
+                    },
+                    "min_count": {
+                      "type": "integer",
+                      "description": "Minimum number of matching events required"
+                    }
+                  }
+                },
+                "mandatory": {
+                  "type": "boolean",
+                  "description": "Whether this control is mandatory for compliance",
+                  "default": true
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": ["critical", "high", "medium", "low"],
+                  "description": "Priority level for gap analysis"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

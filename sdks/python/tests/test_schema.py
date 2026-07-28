@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+import pydantic
 import pytest
 
 from trustlayer import (
@@ -55,7 +56,7 @@ def test_policy_check_payload_enum_round_trip() -> None:
 
 
 def test_unknown_top_level_field_rejected() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError):
         AgentTraceEvent.model_validate(
             {
                 "agent_id": "a",

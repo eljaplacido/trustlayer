@@ -183,3 +183,61 @@ jobs:
         run: npm test -- --reporter=verbose
       - name: Build
         run: npm run build
+
+  compliance:
+    name: "Compliance tooling (py${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: compliance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          pip install -e .[dev]
+          pip install types-jsonschema types-PyYAML mypy
+      - name: Ruff lint and formatting
+        run: |
+          ruff format --check src/ tests/
+          ruff check src/ tests/
+      - name: MyPy typecheck
+        working-directory: .
+        run: MYPYPATH=. mypy -p compliance.src
+      - name: Pytest
+        run: python -m pytest --tb=short -q
+
+  security:
+    name: "Dependency and secret hygiene"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check tracked secrets
+        run: |
+          ! git grep -nEI '(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----|ghp_[A-Za-z0-9]{36})' -- . ':!docs/**' ':!CHANGELOG.md'
+      - name: Audit Python release dependencies
+        run: |
+          pip install pip-audit
+          pip-audit -r sdks/python/requirements-release.txt
+          pip-audit -r mcp-server/requirements-release.txt
+          pip-audit -r compliance/requirements-release.txt
+      - name: Audit production Node dependencies
+        run: |
+          cd sdks/typescript && npm ci && npm audit --omit=dev --audit-level=high
+          cd ../../dashboard && npm ci && npm audit --omit=dev --audit-level=high
+      - name: Audit Rust dependencies
+        run: |
+          cargo install cargo-audit --locked
+          cd core-rs && cargo audit

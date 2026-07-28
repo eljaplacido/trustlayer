@@ -8,16 +8,16 @@ import pytest
 # this as a collection-time skip with a clear reason.
 otel_trace = pytest.importorskip("opentelemetry.trace")
 otel_export = pytest.importorskip("opentelemetry.sdk.trace.export.in_memory_span_exporter")
-from opentelemetry.sdk.trace import TracerProvider  # noqa: E402
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor  # noqa: E402
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-from trustlayer import (  # noqa: E402
+from trustlayer import (
     AgentTraceEvent,
     CynefinDomain,
     EventType,
     Metrics,
 )
-from trustlayer.otel import OTelExporter  # noqa: E402
+from trustlayer.otel import OTelExporter
 
 
 # A tracer wired up to an in-memory exporter for round-trip assertions.

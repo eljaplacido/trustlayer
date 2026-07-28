@@ -1,0 +1,430 @@
+framework: aitomation-template
+version: "1.0"
+description: |
+  Aitomation AI Governance, Testing & Production Readiness -pohja.
+  Projektikohtainen malli AI-ratkaisujen hallintaan, testaukseen ja tuotantovalmiuden arviointiin.
+  Perustuu riskiperusteiseen toteutukseen.
+
+articles:
+  - id: section-3.1
+    title: "Projektikohtainen hallintamalli"
+    description: |
+      Projektin alussa määritellään AI-ratkaisun käyttötarkoitus, hyväksytyt käyttötavat,
+      rajaukset ja osapuolten vastuut. Arvioidaan käyttötapauksen riskiprofiili, käsiteltävän
+      datan luonne, kriittiset päätöspisteet ja tuotantokäytön valvontatarpeet.
+    risk_classes: [high-risk, limited-risk, minimal-risk]
+    controls:
+      - id: section-3.1.1
+        title: "Käyttötarkoituksen ja rajauksen määrittely"
+        description: |
+          Onko ratkaisun tarkoitus, rajaus ja hyväksytty käyttötapa dokumentoitu?
+          Onko määritelty, mitä AI tekee ja mitä se ei tee?
+        evidence_types: [use_case_definition, scope_document, restriction_list]
+        mandatory: true
+        priority: critical
+
+      - id: section-3.1.2
+        title: "AI:n rooli prosessissa"
+        description: |
+          Onko määritelty AI:n rooli (avustava, ehdottava, ohjaava, osittain automatisoiva)?
+        evidence_types: [role_definition, process_diagram]
+        mandatory: true
+        priority: high
+
+      - id: section-3.1.3
+        title: "Roolitus ja omistajuus"
+        description: |
+          Onko projektille nimetty liiketoiminnallinen omistaja, tekninen omistaja,
+          tietoturva-/tietosuojavastaava, operatiivinen omistaja ja poikkeamien käsittelyn vastuuhenkilö?
+        evidence_types: [role_assignment, responsibility_matrix]
+        mandatory: true
+        priority: high
+
+  - id: section-3.2
+    title: "Arkkitehtuuri- ja tietoturvaperiaatteet"
+    description: |
+      Ratkaisun toteutuksessa sovelletaan vähimmän oikeuden periaatetta, ympäristöjen eriyttämistä,
+      salaisuuksien hallintaa, muutostenhallintaa ja teknistä jäljitettävyyttä.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: section-3.2.1
+        title: "Identiteetin- ja pääsynhallinta"
+        description: |
+          Onko tunnistautuminen, valtuutus ja käyttöoikeusmalli toteutettu sovitulla tavalla?
+          Miten käyttäjät, palvelut ja integraatiot tunnistetaan?
+        evidence_types: [auth_config, access_policy, iam_documentation]
+        mandatory: true
+        priority: critical
+
+      - id: section-3.2.2
+        title: "Salaisuuksien hallinta"
+        description: |
+          Miten avaimet ja salaisuudet hallitaan? Onko secrets management käytössä?
+        evidence_types: [secrets_config, vault_documentation]
+        mandatory: true
+        priority: critical
+
+      - id: section-3.2.3
+        title: "Ympäristöjen eriyttäminen"
+        description: |
+          Miten ympäristöt (dev, staging, prod) erotellaan?
+        evidence_types: [environment_config, deployment_diagram]
+        mandatory: true
+        priority: high
+
+      - id: section-3.2.4
+        title: "Muutostenhallinta"
+        description: |
+          Miten konfiguraatioiden, sääntöjen, mallien tai kehotteiden muutokset hallitaan?
+        evidence_types: [change_management_process, version_control_config]
+        mandatory: true
+        priority: high
+
+  - id: section-3.3
+    title: "Data governance ja tietosuoja"
+    description: |
+      Projektissa määritellään, mitä dataa ratkaisu käyttää, mistä lähteistä data tulee,
+      mihin data tallennetaan, kenellä on siihen pääsy ja mikä osa datasta on tarpeen AI-käsittelylle.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: section-3.3.1
+        title: "Datan tunnistaminen ja luokittelu"
+        description: |
+          Onko käsiteltävä data tunnistettu ja luokiteltu?
+          Käsitteleekö ratkaisu henkilötietoa, luottamuksellista tietoa tai muuta sensitiivistä aineistoa?
+        evidence_types: [data_classification, data_inventory]
+        mandatory: true
+        priority: critical
+
+      - id: section-3.3.2
+        title: "Tietojen minimointi"
+        description: |
+          Onko tietojen minimointi toteutettu? Käsitelläänkö vain tarvittava data?
+        evidence_types: [data_minimization_policy, data_flow_diagram]
+        mandatory: true
+        priority: high
+
+      - id: section-3.3.3
+        title: "Pseudonymisointi / anonymisointi"
+        description: |
+          Onko pseudonymisointi, anonymisointi tai muu eriyttäminen toteutettu tai tietoisesti rajattu?
+        evidence_types: [anonymization_config, pseudonymization_documentation]
+        mandatory: false
+        priority: medium
+
+      - id: section-3.3.4
+        title: "Datan säilytys ja poisto"
+        description: |
+          Miten data säilytetään ja poistetaan? Onko retention policy määritelty?
+        evidence_types: [retention_policy, data_deletion_procedure]
+        mandatory: true
+        priority: high
+
+  - id: section-3.4
+    title: "Ihmisen valvonta ja käyttörajoitukset"
+    description: |
+      Projektissa kuvataan, missä tilanteissa AI tuottaa ainoastaan ehdotuksia, missä tilanteissa
+      tulosta voidaan käyttää osana jatkoprosessia ja missä kohdissa vaaditaan ihmisen hyväksyntä.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: section-3.4.1
+        title: "Ihmisen hyväksyntäpisteet"
+        description: |
+          Onko tarvittavat ihmisen hyväksyntä-, valvonta- tai fallback-menettelyt sovittu?
+          Missä kohdissa vaaditaan ihmisen hyväksyntä, muokkaus tai mahdollisuus ohittaa AI:n toiminta?
+        evidence_types: [approval_workflow, human_oversight_config]
+        evidence_query:
+          event_types: [HUMAN_ESCALATION, POLICY_CHECK]
+          payload_filters:
+            result: ESCALATE
+        mandatory: true
+        priority: critical
+
+      - id: section-3.4.2
+        title: "Confidence-kynnykset ja sääntöpohjaiset tarkistukset"
+        description: |
+          Onko ratkaisun käyttömalliin sisällytetty confidence-kynnyksiä, sääntöpohjaisia tarkistuksia,
+          estomekanismeja tai fallback-menettelyjä?
+        evidence_types: [confidence_threshold_config, rule_based_checks]
+        evidence_query:
+          event_types: [POLICY_CHECK]
+          payload_filters:
+            result: FAIL
+        mandatory: false
+        priority: medium
+
+      - id: section-3.4.3
+        title: "Käyttörajoitusten näyttäminen käyttäjälle"
+        description: |
+          Näytetäänkö käyttäjälle AI-ratkaisun käyttörajoitukset, tuloksen luonne
+          (ehdotus, luonnos, analyysi), epävarmuudet tai se, että lopullinen päätös kuuluu ihmiselle?
+        evidence_types: [ui_documentation, user_guidance]
+        mandatory: true
+        priority: high
+
+  - id: section-3.5
+    title: "Testausmalli"
+    description: |
+      Ratkaisun testaus toteutetaan riskiperusteisesti. Testauksen laajuus riippuu ratkaisun
+      käyttökontekstista, datan herkkyydestä, integraatioista, AI:n roolista prosessissa ja
+      asiakkaan hyväksymiskriteereistä.
+    risk_classes: [high-risk, limited-risk, minimal-risk]
+    controls:
+      - id: section-3.5.1
+        title: "Funktionaalinen testaus"
+        description: |
+          Onko sovittu testauslaajuus toteutettu? Onko yksikkötestejä, integraatiotestejä,
+          end-to-end-testejä ja regressiotestausta tehty?
+        evidence_types: [test_results, test_coverage_report]
+        mandatory: true
+        priority: high
+
+      - id: section-3.5.2
+        title: "AI-spesifi testaus"
+        description: |
+          Onko AI-spesifi testaus toteutettu? Sisältääkö se hallusinaatioriskien arviointia,
+          prompt injection -testausta, tietovuotoriskien testausta, rajattujen hyväksyntätapausten
+          validointia, "golden case" -vertailuja, red flag -skenaarioita?
+        evidence_types: [ai_test_results, hallucination_test, prompt_injection_test]
+        mandatory: true
+        priority: critical
+
+      - id: section-3.5.3
+        title: "Tietoturvatestaus"
+        description: |
+          Onko olennaiset tietoturvakontrollit testattu?
+        evidence_types: [security_test_results, penetration_test_report]
+        mandatory: true
+        priority: critical
+
+      - id: section-3.5.4
+        title: "Hyväksymiskriteerien dokumentointi ja läpäisy"
+        description: |
+          Onko hyväksymiskriteerit dokumentoitu ja läpäisty?
+        evidence_types: [acceptance_criteria, acceptance_test_results]
+        mandatory: true
+        priority: high
+
+  - id: section-3.6
+    title: "Dokumentaatio, lokitus ja monitorointi"
+    description: |
+      Projektissa sovitaan dokumentaation taso ja sisältö. Lokituksen osalta määritellään,
+      mitä tapahtumia tallennetaan, kuinka pitkään lokit säilytetään, miten niitä käytetään
+      virhetilanteiden selvityksessä sekä miten muutosten jäljitettävyys toteutetaan.
+    risk_classes: [high-risk, limited-risk, minimal-risk]
+    controls:
+      - id: section-3.6.1
+        title: "Tekninen dokumentaatio"
+        description: |
+          Onko ratkaisun toimintaperiaate, käyttörajoitukset ja sovittu käyttömalli dokumentoitu?
+          Sisältääkö dokumentaatio arkkitehtuurin kuvauksen, käyttötarkoituksen ja rajaukset,
+          tietovirrat, valitut kontrollit, testausmallin, käyttörajoitukset, vastuuroolit,
+          hyväksymiskriteerit ja tuotantoonviennin päätöspisteet?
+        evidence_types: [architecture_documentation, technical_documentation]
+        mandatory: true
+        priority: high
+
+      - id: section-3.6.2
+        title: "Lokitus"
+        description: |
+          Onko lokitus toteutettu sovitulla tasolla? Määritelläänkö, mitä tapahtumia tallennetaan,
+          kuinka pitkään lokit säilytetään ja miten niitä käytetään virhetilanteiden selvityksessä?
+        evidence_types: [logging_config, log_retention_policy]
+        evidence_query:
+          event_types: [AGENT_START, TOOL_CALL, TOOL_RESULT, LLM_CALL, POLICY_CHECK, HUMAN_ESCALATION, AGENT_END]
+          min_count: 1
+        mandatory: true
+        priority: critical
+
+      - id: section-3.6.3
+        title: "Monitorointi"
+        description: |
+          Onko tekninen ja operatiivinen monitorointi käytössä? Sisältääkö se teknistä virhevalvontaa,
+          suorituskykymittareita, käyttövolyymeja, poikkeamien tunnistamista, AI-tuotosten laadun
+          seurantaa ja hälytyksiä?
+        evidence_types: [monitoring_config, alert_rules, metrics_dashboard]
+        mandatory: true
+        priority: high
+
+      - id: section-3.6.4
+        title: "Käyttöohjeet"
+        description: |
+          Onko käyttäjille ja ylläpidolle tarvittavat ohjeet saatavilla?
+        evidence_types: [user_guide, admin_guide, runbook]
+        mandatory: true
+        priority: medium
+
+  - id: section-3.7
+    title: "Poikkeamat ja jatkuva kehittäminen"
+    description: |
+      Projektissa sovitaan, miten merkittävät virheet, poikkeamat, riskihavainnot ja muutostarpeet
+      tunnistetaan, dokumentoidaan, käsitellään ja eskaloidaan.
+    risk_classes: [high-risk, limited-risk, minimal-risk]
+    controls:
+      - id: section-3.7.1
+        title: "Poikkeamien käsittely ja eskalointi"
+        description: |
+          Onko virhe- ja poikkeamatilanteille sovittu eskalointipolku? Onko incident-luokittelu,
+          vastepolut, hyväksyntäketjut ja toimenpidevastuut määritelty?
+        evidence_types: [incident_management_process, escalation_procedure]
+        evidence_query:
+          event_types: [HUMAN_ESCALATION]
+        mandatory: true
+        priority: high
+
+      - id: section-3.7.2
+        title: "Jatkuva seuranta ja arviointi"
+        description: |
+          Onko omistaja nimetty jatkuvalle seurannalle? Miten ratkaisun käyttöä, laatua,
+          turvallisuutta ja vaatimustenmukaisuutta arvioidaan käyttöönoton jälkeen?
+        evidence_types: [continuous_monitoring_plan, review_schedule]
+        mandatory: true
+        priority: medium
+
+      - id: section-3.7.3
+        title: "Muutosten validointi"
+        description: |
+          Onko tiedossa, miten muutokset validoidaan ennen käyttöönottoa? Onko määretty,
+          milloin ratkaisu katselmoidaan uudelleen riskien, laadun tai sääntelyn näkökulmasta?
+        evidence_types: [change_validation_process, review_schedule]
+        mandatory: true
+        priority: medium
+
+  - id: section-4
+    title: "AI Risk & Control Register"
+    description: |
+      Projektissa ylläpidetään AI Risk & Control Register -rekisteriä, johon kirjataan projektin
+      olennaiset riskit, sovitut kontrollit, omistajuus, toteutusvaihe, hyväksymiskriteerit ja
+      tarvittava todistusaineisto.
+    risk_classes: [high-risk, limited-risk]
+    controls:
+      - id: section-4.1
+        title: "Riskirekisterin ylläpito"
+        description: |
+          Onko riskirekisteri olemassa ja ajan tasalla? Sisältääkö se Risk ID:n, riskialueen,
+          riskikuvauksen, vaikutuksen, todennäköisyyden, sovitun kontrollin, kontrollin tyypin,
+          omistajan, toteutusvaiheen, todistusaineiston, tilan ja avoimet toimenpiteet?
+        evidence_types: [risk_register, control_register]
+        mandatory: true
+        priority: high
+
+      - id: section-4.2
+        title: "Käyttötarkoituksen ylitys -riski"
+        description: |
+          Onko riski, että AI-ratkaisua käytetään tarkoitukseen, jota varten sitä ei ole
+          suunniteltu tai validoitu, tunnistettu ja kontrolloitu?
+        evidence_types: [use_case_restrictions, enforcement_mechanism]
+        mandatory: true
+        priority: critical
+
+      - id: section-4.3
+        title: "Data governance ja tietosuoja -riski"
+        description: |
+          Onko riski, että ratkaisu käsittelee henkilötietoa tai muuta sensitiivistä dataa
+          tavalla, joka ei vastaa sovittua käyttötarkoitusta, tunnistettu ja kontrolloitu?
+        evidence_types: [data_governance_controls, privacy_impact_assessment]
+        mandatory: true
+        priority: critical
+
+      - id: section-4.4
+        title: "AI-tuotoksen luotettavuus -riski"
+        description: |
+          Onko riski, että AI tuottaa virheellisiä, puutteellisia tai harhaanjohtavia tuloksia,
+          tunnistettu ja kontrolloitu?
+        evidence_types: [reliability_controls, quality_checks]
+        mandatory: true
+        priority: critical
+
+      - id: section-4.5
+        title: "Tietoturva ja väärinkäytökset -riski"
+        description: |
+          Onko riski, että ratkaisu altistuu prompt injection -hyökkäyksille, tietovuodoille,
+          väärille käyttöoikeuksille tai muille väärinkäytöksille, tunnistettu ja kontrolloitu?
+        evidence_types: [security_controls, access_controls]
+        mandatory: true
+        priority: critical
+
+      - id: section-4.6
+        title: "Jäljitettävyys ja muutostenhallinta -riski"
+        description: |
+          Onko riski, että aiempia tuotoksia, muutoksia tai hyväksyntöjä ei pystytä jälkikäteen
+          todentamaan, tunnistettu ja kontrolloitu?
+        evidence_types: [audit_trail, version_control, change_log]
+        mandatory: true
+        priority: high
+
+  - id: section-5
+    title: "AI Release Readiness Checklist"
+    description: |
+      Ennen pilotin laajentamista tai tuotantoonvientiä arvioidaan ratkaisun AI Release Readiness.
+      Tarkistus perustuu projektikohtaisiin hyväksymiskriteereihin.
+    risk_classes: [high-risk, limited-risk, minimal-risk]
+    controls:
+      - id: section-5.1
+        title: "Käyttötarkoitus ja rajaukset -valmius"
+        description: |
+          Onko käyttötarkoitus kuvattu ja hyväksytty? Onko määritelty, mitä AI tekee ja mitä se ei tee?
+          Onko tarvittavat ihmisen hyväksyntä-, valvonta- tai fallback-menettelyt sovittu?
+        evidence_types: [use_case_approval, scope_signoff]
+        mandatory: true
+        priority: critical
+
+      - id: section-5.2
+        title: "Data ja tietosuoja -valmius"
+        description: |
+          Onko käsiteltävä data tunnistettu ja luokiteltu? Onko henkilötietojen tai muun
+          sensitiivisen datan käsittelytapa sovittu? Onko tietojen minimointi, pseudonymisointi,
+          anonymisointi tai muu eriyttäminen toteutettu tai tietoisesti rajattu?
+        evidence_types: [data_classification_approval, privacy_signoff]
+        mandatory: true
+        priority: critical
+
+      - id: section-5.3
+        title: "Tietoturva ja käyttöoikeudet -valmius"
+        description: |
+          Onko tunnistautuminen, valtuutus ja käyttöoikeusmalli toteutettu sovitulla tavalla?
+          Onko salaisuuksien, integraatioiden ja ympäristöjen hallinta määritelty?
+          Onko olennaiset tietoturvakontrollit testattu?
+        evidence_types: [security_signoff, access_control_approval]
+        mandatory: true
+        priority: critical
+
+      - id: section-5.4
+        title: "Testaus -valmius"
+        description: |
+          Onko sovittu testauslaajuus toteutettu? Onko funktionaalinen testaus, integraatiotestaus
+          ja tarvittava regressiotestaus tehty? Onko AI-spesifi testaus toteutettu käyttötapauksen
+          edellyttämässä laajuudessa? Onko hyväksymiskriteerit dokumentoitu ja läpäisty?
+        evidence_types: [test_signoff, acceptance_approval]
+        mandatory: true
+        priority: critical
+
+      - id: section-5.5
+        title: "Läpinäkyvyys, dokumentaatio ja käyttöohjeet -valmius"
+        description: |
+          Onko ratkaisun toimintaperiaate, käyttörajoitukset ja sovittu käyttömalli dokumentoitu?
+          Onko käyttäjille ja ylläpidolle tarvittavat ohjeet saatavilla? Onko poikkeamien
+          käsittely ja vastuut kuvattu?
+        evidence_types: [documentation_signoff, user_guide_approval]
+        mandatory: true
+        priority: high
+
+      - id: section-5.6
+        title: "Lokitus, monitorointi ja incident-hallinta -valmius"
+        description: |
+          Onko lokitus toteutettu sovitulla tasolla? Onko tekninen ja operatiivinen monitorointi
+          käytössä? Onko virhe- ja poikkeamatilanteille sovittu eskalointipolku? Onko omistaja
+          nimetty jatkuvalle seurannalle?
+        evidence_types: [monitoring_signoff, incident_plan_approval]
+        mandatory: true
+        priority: critical
+
+      - id: section-5.7
+        title: "Muutostenhallinta ja jatkuva ylläpito -valmius"
+        description: |
+          Onko sääntöjen, mallien, kehotteiden tai asetusten muutoksille sovittu hallintamalli?
+          Onko tiedossa, miten muutokset validoidaan ennen käyttöönottoa? Onko määretty, milloin
+          ratkaisu katselmoidaan uudelleen riskien, laadun tai sääntelyn näkökulmasta?
+        evidence_types: [change_management_signoff, maintenance_plan_approval]
+        mandatory: true
+        priority: high

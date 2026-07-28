@@ -42,3 +42,5 @@ examples/.demo_traces.jsonl
 events.jsonl
 *.jsonl.compacting
 core-rs/events.jsonl
+.routekit/
+.verify-venv/

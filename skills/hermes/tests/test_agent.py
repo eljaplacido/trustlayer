@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pydantic
 import pytest
-
 from hermes.hermes_agent import HermesAgent
 from trustlayer.schema import EventType
 
@@ -15,9 +15,7 @@ def test_ingest_writes_per_session_note(tmp_path: Path, sample_session):
     assert len(notes) == 1
     note_path = notes[0]
     assert note_path.exists()
-    assert note_path.relative_to(tmp_path) == Path(
-        "03_Memory_Traces/researcher/session-1.md"
-    )
+    assert note_path.relative_to(tmp_path) == Path("03_Memory_Traces/researcher/session-1.md")
     body = note_path.read_text(encoding="utf-8")
     assert "# Session `session-1`" in body
     assert "AGENT_START" in body and "AGENT_END" in body
@@ -107,5 +105,5 @@ def test_unknown_field_in_jsonl_raises(tmp_path: Path):
         encoding="utf-8",
     )
     agent = HermesAgent(tmp_path / "vault")
-    with pytest.raises(Exception):
+    with pytest.raises(pydantic.ValidationError):
         agent.ingest_jsonl(feed)

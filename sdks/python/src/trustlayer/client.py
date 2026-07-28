@@ -14,7 +14,7 @@ from .schema import AgentTraceEvent
 
 logger = logging.getLogger("trustlayer")
 
-DEFAULT_ENDPOINT = "http://localhost:8080/v1/events"
+DEFAULT_ENDPOINT = "http://127.0.0.1:8089/v1/events"
 API_TOKEN_ENV_VAR = "TRUSTLAYER_API_TOKEN"
 
 

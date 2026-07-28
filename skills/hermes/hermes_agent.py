@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +70,11 @@ class HermesAgent:
         for raw in events:
             event = self._truncate_payload(self._coerce(raw))
             key = (event.agent_id, event.session_id)
-            session = self._sessions.setdefault(key, OrderedDict())
+            session = self._sessions.get(key)
+            if session is None:
+                persisted = self._load_sidecar(key) if self.persist_events else []
+                session = OrderedDict((str(item.trace_id), item) for item in persisted)
+                self._sessions[key] = session
             tid = str(event.trace_id)
             is_new = tid not in session
             session[tid] = event
@@ -101,10 +105,7 @@ class HermesAgent:
             return None
         reflection = self.reflector.synthesise(summaries)
         self.reflection_dir.mkdir(parents=True, exist_ok=True)
-        out_path = (
-            self.reflection_dir
-            / f"reflection-{datetime.now(timezone.utc).date().isoformat()}.md"
-        )
+        out_path = self.reflection_dir / f"reflection-{datetime.now(UTC).date().isoformat()}.md"
         out_path.write_text(
             render_reflection_note(reflection, summaries),
             encoding="utf-8",
@@ -118,9 +119,7 @@ class HermesAgent:
     def session_keys(self) -> list[SessionKey]:
         return sorted(self._sessions)
 
-    def session_events(
-        self, agent_id: str, session_id: str
-    ) -> list[AgentTraceEvent]:
+    def session_events(self, agent_id: str, session_id: str) -> list[AgentTraceEvent]:
         key = (agent_id, session_id)
         if key in self._sessions:
             return self._ordered_events(key)
