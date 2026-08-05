@@ -1,0 +1,21 @@
+{
+  "trace_id": "66666666-6666-4666-8666-666666666666",
+  "agent_id": "art50-agent",
+  "session_id": "S51",
+  "timestamp": "2026-07-03T10:01:00Z",
+  "event_type": "CONTENT_MARKED",
+  "cynefin_domain": "CLEAR",
+  "payload": {
+    "artifact_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "confidence": 0.97,
+    "content_type": "image",
+    "marking_type": "c2pa",
+    "verification": {
+      "method": "c2pa",
+      "verified": true,
+      "verified_at": "2026-07-03T10:01:00+00:00",
+      "verifier": "trustlayer-marking-verify/0.1"
+    }
+  },
+  "metrics": {}
+}

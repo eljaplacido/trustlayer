@@ -24,7 +24,7 @@ when, they appear in all capitals.
 
 1. [Wire format](./01-wire-format.md) — `AgentTraceEvent` envelope,
    types, and JSON encoding.
-2. [Event types](./02-event-types.md) — the seven `event_type` values
+2. [Event types](./02-event-types.md) — the nine `event_type` values
    and their payload contracts.
 3. [Cynefin domain](./03-cynefin.md) — the `CynefinDomain` enum and its
    semantic role in policy evaluation.

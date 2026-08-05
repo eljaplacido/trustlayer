@@ -3,7 +3,7 @@
 **Status:** Normative.
 
 The `event_type` field selects which payload contract applies. This
-section defines the seven event types and the payload keys an
+section defines the nine event types and the payload keys an
 implementation MUST emit when applicable, plus the keys it SHOULD
 recognize on the receive side.
 
@@ -18,6 +18,8 @@ The full `event_type` enum:
 | `POLICY_CHECK` | [§2.5](#25-policy_check) |
 | `HUMAN_ESCALATION` | [§2.6](#26-human_escalation) |
 | `AGENT_END` | [§2.7](#27-agent_end) |
+| `DISCLOSURE_SHOWN` | [§2.8](#28-disclosure_shown) |
+| `CONTENT_MARKED` | [§2.9](#29-content_marked) |
 
 All values MUST be encoded in `SCREAMING_SNAKE_CASE` (§1.3).
 
@@ -153,7 +155,76 @@ Emitted once at the end of a session.
 
 ---
 
-## 2.8 Forward compatibility (informative)
+## 2.8 `DISCLOSURE_SHOWN`
+
+Emitted when a transparency disclosure required by EU AI Act Art. 50 is
+presented to a natural person. One event per disclosure occurrence, at
+the point the notice is shown — not at the point it is configured.
+
+```json
+"payload": {
+  "disclosure_type": "ai_interaction | emotion_recognition | biometric_classification | ai_generated | deepfake | public_interest_text | <other string>",
+  "user_notice":     "string",
+  "surface":         "string",
+  "locale":          "string"
+}
+```
+
+- `disclosure_type` — REQUIRED. Implementations SHOULD use one of the
+  listed values and MAY use other strings. The listed values map to
+  Art. 50 as follows: `ai_interaction` → 50(1); `emotion_recognition`
+  and `biometric_classification` → 50(3) (the Act's term for the latter
+  is "biometric categorisation"); `ai_generated` → 50(2); `deepfake`
+  and `public_interest_text` → 50(4).
+- `user_notice` — RECOMMENDED. The disclosure text as shown.
+- `surface` — OPTIONAL. Where the notice appeared (e.g. `chat_header`,
+  `pre_response`, `export_footer`).
+- `locale` — OPTIONAL. BCP 47 tag of the language the notice was shown
+  in.
+
+Receivers MUST NOT infer that a disclosure was *adequate* from the
+presence of this event; the event records that a disclosure occurred.
+
+---
+
+## 2.9 `CONTENT_MARKED`
+
+Emitted when synthetic content is marked as artificially generated or
+manipulated, per EU AI Act Art. 50(2). One event per marked artifact.
+
+```json
+"payload": {
+  "marking_type":  "watermark | c2pa | metadata | provenance_manifest | <other string>",
+  "content_type":  "text | image | audio | video | <other string>",
+  "artifact_hash": "string",
+  "confidence":    0.97,
+  "verification": {
+    "method":      "c2pa | watermark | metadata | none",
+    "verified":    true,
+    "verified_at": "<ISO 8601 with offset>",
+    "verifier":    "string"
+  }
+}
+```
+
+- `marking_type` — REQUIRED. Implementations SHOULD use one of the
+  listed values and MAY use other strings.
+- `content_type` — RECOMMENDED.
+- `artifact_hash` — OPTIONAL. Hash of the marked artifact, enabling
+  later re-verification.
+- `confidence` — OPTIONAL. MUST be a JSON number in `[0, 1]` when
+  present.
+- `verification` — OPTIONAL. Present when the emitter re-read the
+  artifact and confirmed the marking is present and well-formed.
+  `verified` MUST be a boolean when the object is present.
+
+Absent a `verification` object, this event records that the emitter
+**claims** to have marked the content. Receivers MUST NOT treat the
+claim as confirmation that a marking is present in the artifact.
+
+---
+
+## 2.10 Forward compatibility (informative)
 
 A future `MINOR` may add new `event_type` values. Receivers that do
 not recognize a value MUST treat the envelope as valid and SHOULD

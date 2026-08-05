@@ -51,4 +51,4 @@ The framework has been extended in the literature with additional
 states. Adding a new value to this enum is a wire-format **MINOR**
 change (§1.7). Receivers that do not recognize a value MUST treat
 the envelope as valid (analogous to the rule for unknown
-`event_type` values in §2.8).
+`event_type` values in §2.10).

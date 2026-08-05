@@ -2128,6 +2128,7 @@ dependencies = [
  "pyo3",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "subtle",
  "thiserror 1.0.69",

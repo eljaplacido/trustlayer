@@ -13,6 +13,7 @@ pub mod events;
 #[cfg(feature = "python")]
 pub mod ffi;
 pub mod guardian;
+pub mod integrity;
 #[cfg(feature = "server")]
 pub mod metrics;
 #[cfg(feature = "postgres")]
@@ -28,8 +29,12 @@ pub mod schema;
 pub mod server;
 
 pub use error::{Error, Result};
-pub use events::{EventFilter, EventStore, SessionSummary, TraceStore};
+pub use events::{
+    EventFilter, EventStore, RetentionStats, SessionSummary, TraceStore,
+    DEFAULT_RETENTION_FLOOR_DAYS,
+};
 pub use guardian::{CynepicGuardian, Verdict};
+pub use integrity::{ChainEntry, ChainVerification, EventHash, Seq};
 #[cfg(feature = "server")]
 pub use metrics::ServerMetrics;
 #[cfg(feature = "postgres")]

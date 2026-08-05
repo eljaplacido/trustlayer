@@ -15,6 +15,13 @@ pub enum Error {
 
     #[error("storage backend error: {0}")]
     Storage(String),
+
+    /// A malformed or unverifiable entry in the tamper-evident chain
+    /// (ADR-017). Distinct from [`Error::Storage`] because an integrity
+    /// failure is evidence of a problem with the log itself, not with the
+    /// backend serving it.
+    #[error("integrity error: {0}")]
+    Integrity(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

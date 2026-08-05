@@ -36,7 +36,7 @@ use tracing_subscriber::EnvFilter;
 use trustlayer_core::policy_watch::spawn_watcher;
 use trustlayer_core::{
     build_router, AppState, CynepicGuardian, EventStore, IngestRateLimit, Policy, ServerMetrics,
-    TraceStore,
+    TraceStore, DEFAULT_RETENTION_FLOOR_DAYS,
 };
 
 #[tokio::main]
@@ -67,6 +67,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
         .filter(|n| *n > 0);
+
+    // Minimum age before an event may leave the live log (ADR-017 §7).
+    // Art. 12 requires >= 6 months for high-risk systems and 24 months for
+    // biometric / law-enforcement ones, so the default is 180 days and
+    // operators raise it. Setting 0 disables the floor explicitly.
+    let retention_floor = match std::env::var("TRUSTLAYER_RETENTION_MIN_DAYS") {
+        Ok(raw) => match raw.trim().parse::<i64>() {
+            Ok(0) => None,
+            Ok(days) if days > 0 => Some(chrono::Duration::days(days)),
+            _ => {
+                warn!(
+                    "TRUSTLAYER_RETENTION_MIN_DAYS={raw:?} is not a non-negative \
+                     integer; falling back to the {DEFAULT_RETENTION_FLOOR_DAYS}-day default"
+                );
+                Some(chrono::Duration::days(DEFAULT_RETENTION_FLOOR_DAYS))
+            }
+        },
+        Err(_) => Some(chrono::Duration::days(DEFAULT_RETENTION_FLOOR_DAYS)),
+    };
 
     // Backend selection: a non-empty TRUSTLAYER_DATABASE_URL chooses Postgres
     // (requires the `postgres` build feature); otherwise JSONL / in-memory.
@@ -112,10 +131,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
         match retention {
-            Some(n) => info!("Event retention: keep ~{n} most-recent events (JSONL)"),
+            Some(n) => info!(
+                "Event retention: target ~{n} live events; overflow is archived, never deleted"
+            ),
             None => info!("Event retention: unbounded"),
         }
-        Arc::new(store.with_retention(retention))
+        match retention_floor {
+            Some(d) => info!(
+                "Retention floor: {} days — events younger than this are never evicted (Art. 12)",
+                d.num_days()
+            ),
+            None => warn!(
+                "Retention floor DISABLED (TRUSTLAYER_RETENTION_MIN_DAYS=0). \
+                 A count target can now evict recent evidence; this is not \
+                 appropriate for a store holding high-risk system logs."
+            ),
+        }
+
+        let store = store
+            .with_retention(retention)
+            .with_retention_floor(retention_floor);
+        for anomaly in store.chain_anomalies() {
+            warn!("Event log integrity: {anomaly}");
+        }
+        Arc::new(store)
     };
 
     let vault_path = std::env::var("TRUSTLAYER_VAULT_PATH")

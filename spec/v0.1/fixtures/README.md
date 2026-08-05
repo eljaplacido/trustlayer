@@ -4,29 +4,51 @@ This directory holds **deterministic JSON artifacts** that every
 conforming implementation MUST be able to parse into an
 `AgentTraceEvent` per [`spec/v0.1/01-wire-format.md`](../01-wire-format.md).
 
-Each fixture is named for the SDK that produced it. They are
-byte-identical across runs because their `trace_id` and `timestamp`
-are pinned to fixed values; that lets us cite the same artifact
-across versions of the spec without re-generating.
+Fixtures are named `event-<subject>-<lang>.json`, where `<lang>` is the
+SDK that produced them. They are byte-identical across runs because
+their `trace_id` and `timestamp` are pinned to fixed values; that lets
+us cite the same artifact across versions of the spec without
+re-generating.
 
-The reference Rust core's cross-language test
-(`core-rs/tests/cross_language.rs`) loads every file here and asserts
-it parses with the strict envelope (W1) plus expected field values.
+**Every implementation reads this directory.** The reference Rust core
+(`core-rs/tests/cross_language.rs`) and all four SDKs glob it and assert
+that each file parses under the strict envelope (W1), preserves every
+envelope field, round-trips to a fixed point, and *rejects* an injected
+unknown field:
+
+| Implementation | Test |
+|---|---|
+| Rust core | `core-rs/tests/cross_language.rs` |
+| Python SDK | `sdks/python/tests/test_conformance_fixtures.py` |
+| TypeScript SDK | `sdks/typescript/tests/conformance.test.ts` |
+| Go SDK | `sdks/go/trustlayer/conformance_test.go` |
+
+Globbing rather than naming files means a fixture added here is covered
+by all five the moment it is committed. A fixture read by only the
+language that produced it proves nothing about interoperability — this
+is the rule whose absence produced gap G0 (see `docs/PHASE-8-DESIGN.md`
+§5.3).
 
 ## Current fixtures
 
-| File | Producer | Reproduce |
-|---|---|---|
-| `event-canonical-go.json` | Go SDK (`sdks/go/`) | `cd sdks/go && go run ./examples/conformance > ../../spec/v0.1/fixtures/event-canonical-go.json` |
+| File | Subject | Producer | Reproduce (from `sdks/go/`) |
+|---|---|---|---|
+| `event-canonical-go.json` | `TOOL_CALL` with full metrics | Go SDK | `go run ./examples/conformance canonical > ../../spec/v0.1/fixtures/event-canonical-go.json` |
+| `event-disclosure-shown-go.json` | `DISCLOSURE_SHOWN`, Art. 50(1) (§2.8) | Go SDK | `go run ./examples/conformance disclosure-shown > ../../spec/v0.1/fixtures/event-disclosure-shown-go.json` |
+| `event-content-marked-go.json` | `CONTENT_MARKED` with a `verification` block, Art. 50(2) (§2.9) | Go SDK | `go run ./examples/conformance content-marked > ../../spec/v0.1/fixtures/event-content-marked-go.json` |
 
 ## Adding a new fixture
 
-1. Add a deterministic generator to your SDK's `examples/conformance/`
-   directory.
+1. Add a builder to your SDK's `examples/conformance/` generator, keyed
+   by a CLI name.
 2. Pin the `trace_id`, `timestamp`, payload, and metrics so successive
-   runs are byte-identical.
-3. Commit the generator's output as
-   `event-canonical-<lang>.json` in this directory.
-4. Reference the file from
-   `core-rs/tests/cross_language.rs` so the test runs against the new
-   SDK's emitted bytes.
+   runs are byte-identical. Regenerating an unchanged fixture must
+   produce no diff.
+3. Commit the generator's output as `event-<subject>-<lang>.json` here
+   and add a row to the table above.
+4. Add a field-level assertion in `core-rs/tests/cross_language.rs`.
+   The generic checks (strict envelope, field preservation, round-trip,
+   unknown-field rejection) apply automatically via the glob in all five
+   implementations, but a fixture with no *subject-specific* assertion
+   only proves it parses — not that it carries the payload the spec
+   section describes.

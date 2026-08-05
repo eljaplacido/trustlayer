@@ -29,7 +29,7 @@ The envelope for every event emitted by an agent.
   "agent_id": "string",
   "session_id": "string",
   "timestamp": "ISO-8601 with offset (e.g. 2026-05-12T09:00:00+00:00)",
-  "event_type": "AGENT_START | TOOL_CALL | TOOL_RESULT | LLM_CALL | POLICY_CHECK | HUMAN_ESCALATION | AGENT_END",
+  "event_type": "AGENT_START | TOOL_CALL | TOOL_RESULT | LLM_CALL | POLICY_CHECK | HUMAN_ESCALATION | AGENT_END | DISCLOSURE_SHOWN | CONTENT_MARKED",
   "cynefin_domain": "CLEAR | COMPLICATED | COMPLEX | CHAOTIC | DISORDER",
   "payload": { /* event-specific, see below */ },
   "metrics": {
@@ -96,6 +96,46 @@ The envelope for every event emitted by an agent.
 ### `AGENT_START` / `AGENT_END` / `HUMAN_ESCALATION`
 Free-form payload. Common keys: `goal`, `status`, `reason`. Emitters
 choose what to capture.
+
+### `DISCLOSURE_SHOWN`
+Emitted when an EU AI Act Art. 50 transparency disclosure is presented
+to a natural person — at the point the notice is shown, not when it is
+configured.
+```json
+{
+  "disclosure_type": "ai_interaction | emotion_recognition | biometric_classification | ai_generated | deepfake | public_interest_text",
+  "user_notice": "string",  // the disclosure text as shown
+  "surface": "string",      // optional — e.g. "chat_header", "pre_response"
+  "locale": "string"        // optional — BCP 47 tag
+}
+```
+`disclosure_type` maps to Art. 50 as: `ai_interaction` → 50(1);
+`emotion_recognition` / `biometric_classification` → 50(3) (the Act's
+term for the latter is "biometric categorisation"); `ai_generated` →
+50(2); `deepfake` / `public_interest_text` → 50(4). Other strings are
+permitted. The event records that a disclosure occurred, not that it
+was adequate.
+
+### `CONTENT_MARKED`
+Emitted when synthetic content is marked as artificially generated or
+manipulated, per Art. 50(2). One event per marked artifact.
+```json
+{
+  "marking_type": "watermark | c2pa | metadata | provenance_manifest",
+  "content_type": "text | image | audio | video",
+  "artifact_hash": "string",  // optional — enables later re-verification
+  "confidence": 0.97,         // optional — number in [0, 1]
+  "verification": {           // optional — present only if re-read and confirmed
+    "method": "c2pa | watermark | metadata | none",
+    "verified": true,
+    "verified_at": "<ISO 8601 with offset>",
+    "verifier": "string"
+  }
+}
+```
+Without a `verification` object this event records a **claim** that the
+content was marked. Receivers must not treat the claim as confirmation
+that a marking is present in the artifact.
 
 ## Policy / `MatchSpec`
 

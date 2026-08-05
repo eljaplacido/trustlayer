@@ -1,10 +1,12 @@
 //! Verify the Rust schema parses JSON emitted by the Python SDK and that
 //! the guardian returns a decision the Python client can deserialize.
 //!
-//! Slice 4b extends this to the Go SDK: the conformance fixture at
-//! `spec/v0.1/fixtures/event-canonical-go.json` is loaded and asserted
-//! to round-trip through the Rust envelope without losses, proving
-//! wire-format parity end-to-end.
+//! Slice 4b extends this to the Go SDK: the conformance fixtures under
+//! `spec/v0.1/fixtures/` are loaded and asserted to round-trip through
+//! the Rust envelope without losses, proving wire-format parity
+//! end-to-end. Phase 8 slice 8.0 adds Art. 50 fixtures for
+//! `DISCLOSURE_SHOWN` and `CONTENT_MARKED`, and globs the directory so a
+//! newly committed fixture is covered without editing this file.
 
 use trustlayer_core::{
     AgentTraceEvent, CynefinDomain, CynepicGuardian, Decision, EventType, MatchSpec, Policy,
@@ -158,39 +160,91 @@ fn parses_go_emitted_conformance_fixture() {
     );
 }
 
-/// New EU AI Act Art. 50 event types must round-trip across all three SDKs.
+/// Load a committed conformance fixture. The test runs with the working
+/// directory set to `core-rs/`, so step up one level to reach `spec/`.
+fn load_fixture(name: &str) -> AgentTraceEvent {
+    let path = format!("../spec/v0.1/fixtures/{name}");
+    let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read fixture at {path}: {e}"));
+    serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("parse fixture {path}: {e}"))
+}
+
+/// Every committed fixture MUST parse through the strict envelope (W1).
+///
+/// The fixtures README promises this test loads *every* file in the
+/// directory; globbing rather than naming files is what makes that true,
+/// so a fixture added without a matching assertion still cannot rot.
 #[test]
-fn parses_disclosure_shown_event() {
-    const RAW: &str = r#"{
-        "trace_id": "55555555-5555-4555-8555-555555555555",
-        "agent_id": "art50-agent",
-        "session_id": "S50",
-        "timestamp": "2026-07-03T10:00:00+00:00",
-        "event_type": "DISCLOSURE_SHOWN",
-        "cynefin_domain": "CLEAR",
-        "payload": {"disclosure_type": "human-facing", "target_audience": "user"},
-        "metrics": {}
-    }"#;
-    let event: AgentTraceEvent = serde_json::from_str(RAW).expect("parse DISCLOSURE_SHOWN");
+fn every_committed_fixture_parses() {
+    let dir = "../spec/v0.1/fixtures";
+    let mut checked = 0;
+    for entry in std::fs::read_dir(dir).expect("read fixtures dir") {
+        let path = entry.expect("dir entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let bytes = std::fs::read(&path).expect("read fixture");
+        let _: AgentTraceEvent = serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+            panic!("fixture {} failed the strict envelope: {e}", path.display())
+        });
+        checked += 1;
+    }
+    assert!(
+        checked >= 3,
+        "expected at least 3 fixtures, found {checked}"
+    );
+}
+
+/// EU AI Act Art. 50 event types must round-trip across all four SDKs.
+/// Asserting against the committed Go-emitted fixture (rather than an
+/// inline literal) means the bytes under test are the bytes an SDK
+/// actually produces.
+#[test]
+fn parses_disclosure_shown_fixture() {
+    let event = load_fixture("event-disclosure-shown-go.json");
+
     assert_eq!(event.event_type, EventType::DisclosureShown);
     assert_eq!(event.cynefin_domain, CynefinDomain::Clear);
+    assert_eq!(event.agent_id, "art50-agent");
+    // spec §2.8: `disclosure_type` is REQUIRED and drives the Art. 50
+    // control catalog's `payload_filters`.
+    assert_eq!(
+        event
+            .payload
+            .get("disclosure_type")
+            .and_then(|v| v.as_str()),
+        Some("ai_interaction")
+    );
+    assert_eq!(
+        event.payload.get("locale").and_then(|v| v.as_str()),
+        Some("en-GB")
+    );
 }
 
 #[test]
-fn parses_content_marked_event() {
-    const RAW: &str = r#"{
-        "trace_id": "66666666-6666-4666-8666-666666666666",
-        "agent_id": "art50-agent",
-        "session_id": "S51",
-        "timestamp": "2026-07-03T10:01:00+00:00",
-        "event_type": "CONTENT_MARKED",
-        "cynefin_domain": "CLEAR",
-        "payload": {"marking_type": "deepfake", "confidence": 0.95},
-        "metrics": {}
-    }"#;
-    let event: AgentTraceEvent = serde_json::from_str(RAW).expect("parse CONTENT_MARKED");
+fn parses_content_marked_fixture() {
+    let event = load_fixture("event-content-marked-go.json");
+
     assert_eq!(event.event_type, EventType::ContentMarked);
     assert_eq!(event.cynefin_domain, CynefinDomain::Clear);
+    assert_eq!(
+        event.payload.get("marking_type").and_then(|v| v.as_str()),
+        Some("c2pa")
+    );
+
+    // spec §2.9: nested `verification` must survive the round trip — it is
+    // what separates a marking claim from a verified marking.
+    let verification = event
+        .payload
+        .get("verification")
+        .expect("verification block present");
+    assert_eq!(
+        verification.get("verified").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+    assert_eq!(
+        verification.get("method").and_then(|v| v.as_str()),
+        Some("c2pa")
+    );
 }
 
 #[test]

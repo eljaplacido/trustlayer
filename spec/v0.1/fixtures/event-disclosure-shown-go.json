@@ -1,0 +1,15 @@
+{
+  "trace_id": "55555555-5555-4555-8555-555555555555",
+  "agent_id": "art50-agent",
+  "session_id": "S50",
+  "timestamp": "2026-07-03T10:00:00Z",
+  "event_type": "DISCLOSURE_SHOWN",
+  "cynefin_domain": "CLEAR",
+  "payload": {
+    "disclosure_type": "ai_interaction",
+    "locale": "en-GB",
+    "surface": "chat_header",
+    "user_notice": "You are interacting with an AI system."
+  },
+  "metrics": {}
+}
