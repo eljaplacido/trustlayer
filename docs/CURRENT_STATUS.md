@@ -232,6 +232,19 @@ closes named ones.
     untested SQL behind an Art. 12 claim is worse than an honest `501`.
     Deployments needing both horizontal scale and Art. 12 integrity should run
     the JSONL backend for now.
+- [x] **Remediation guidance engine (ADR-024, partially closes G4).** A
+  readiness score says *that* you are not compliant, not what to do on Monday.
+  `compliance/remediation/eu-ai-act-v1.yaml` holds 21 guidance entries — data,
+  not code, so counsel can review it and a regulation change does not need an
+  engineer. `compliance/src/remediation.py` matches findings to guidance and
+  emits an ordered plan (blocking → priority → effort), grouped by the three
+  dimensions of work: **technical, documentation, process**. Every entry
+  carries a legal basis, an owner role, and a verification step, all three
+  enforced by tests over the shipped catalog; a further test parses the scanner
+  for `check_id=` literals so a check can never ship without guidance.
+  Findings with no guidance are reported as `unguided`, never dropped.
+  Proposal-only — nothing is written to a user's project (P4). CI can gate with
+  `--fail-on-blocking`.
 - [ ] Slice 8.2 — evidence query v2 + assurance tiers (ADR-018, G3/G4/G9)
 - [ ] Slice 8.3 — agentic trust model (ADR-019, G7/G8/G10)
 - [ ] Slice 8.4 — `evaluators/` package (ADR-020, G11)

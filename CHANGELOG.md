@@ -48,6 +48,32 @@ dead code. Fixed across the schema, `spec/v0.1/01-wire-format.md` §1.3 and
   `trustlayer_integrity_checkpoints_total`,
   `trustlayer_integrity_chains_total`.
 
+**Remediation guidance engine (ADR-024).** Scans reported gaps; they now come
+with the work that closes them.
+- `compliance/remediation/eu-ai-act-v1.yaml` — 21 guidance entries covering
+  every check the readiness scanner can emit, plus the EU AI Act control
+  catalog. Guidance is **data, not code**: it is validated against
+  `remediation.schema.json`, so counsel can review it and a regulation change
+  does not require an engineer.
+- Each action is classified **technical / documentation / process**. This is
+  the point of the feature — the most common way a gap is closed without being
+  closed is fixing it in the wrong dimension, and a score cannot tell the
+  difference.
+- `python -m compliance.src.remediation --readiness r.json [--evidence e.json]`
+  emits an ordered plan (Markdown or JSON), sequenced blocking → priority →
+  effort, with effort ascending *within* a tier so quick wins cannot jump ahead
+  of a blocking gap.
+- Every entry carries a legal basis, an owner role, and a verification step —
+  all three enforced by tests against the shipped catalog. Another test parses
+  `readiness_scanner.py` for `check_id=` literals, so a check cannot ship
+  without guidance.
+- Findings with no authored guidance are reported as `unguided`, never
+  dropped: a shorter plan is not a smaller problem.
+- Proposal-only. `artifacts` are suggested paths; nothing is written to a
+  user's project (design principle P4).
+- `--fail-on-blocking` gates CI. Exit 1 while blocking items remain, 2 when the
+  requested framework has no catalog.
+
 ### Changed (Phase 8)
 - **`TRUSTLAYER_EVENT_RETENTION_MAX` no longer deletes.** It was a hard cap
   that evicted the oldest events on overflow, which could destroy logs Art. 12
@@ -65,6 +91,16 @@ dead code. Fixed across the schema, `spec/v0.1/01-wire-format.md` §1.3 and
 - `GET /v1/events` accepts `after_seq`. Its response shape is **unchanged** —
   chain metadata is served from `/v1/events/chained` so no route returns two
   different bodies.
+- **Agent skills are now single-source.** `.claude/skills/<name>` are symlinks
+  to the canonical `.opencode/skills/<name>` so both harnesses read one file
+  and cannot drift (ADR-023 §4). Every skill states its refusal conditions —
+  load-bearing, because they are what stops an agent raising a compliance score
+  by loosening a check instead of closing the gap.
+- The compliance package gains a mypy gate (`disallow_untyped_defs`,
+  `disallow_any_generics`, `warn_return_any`, `no_implicit_optional`,
+  `strict_equality`). `scripts/verify.sh` now passes `--config-file`
+  explicitly: invoked from the repo root, mypy would otherwise find no config
+  and run with defaults — a gate switched off without failing.
 
 ### Deferred (Phase 8)
 - **Postgres integrity parity.** The `postgres` backend answers the integrity

@@ -18,12 +18,16 @@ compliance/
 ├── controls/
 │   ├── aitomation-template.yaml    # Aitomation governance template
 │   └── eu-ai-act-v1.yaml           # EU AI Act control catalog
+├── remediation/
+│   └── eu-ai-act-v1.yaml           # Guidance catalog: how to close each gap
 ├── schemas/
 │   ├── control.schema.json         # JSON Schema for control frameworks
+│   ├── remediation.schema.json     # JSON Schema for guidance catalogs
 │   └── system.schema.json          # JSON Schema for system registry
 ├── src/
 │   ├── evidence_linker.py          # Links trace events to controls
 │   ├── readiness_scanner.py        # CLI for readiness checks
+│   ├── remediation.py              # Turns findings into an ordered plan
 │   ├── report_generator.py         # Dashboard report generator
 │   └── audit_generator.py          # Markdown and JSON audit package generator
 └── README.md                       # This file
@@ -203,6 +207,57 @@ The package is an evidence summary, not a legal certification. Treat missing
 runtime evidence as a gap and have qualified legal and compliance reviewers
 assess applicability of regulatory controls.
 
+## Remediation guidance
+
+A readiness score tells you *that* you are not compliant. It does not tell you
+what to do on Monday. The remediation planner closes that gap: it matches every
+non-passing finding against a guidance catalog and renders an ordered plan.
+
+```bash
+python -m compliance.src.readiness_scanner --project-dir . --output readiness.json
+python -m compliance.src.remediation --readiness readiness.json --output remediation.md
+
+# Combine with runtime evidence for a plan that covers controls the *runtime*
+# could not substantiate, not just fields that are missing from a document
+python -m compliance.src.remediation \
+    --readiness readiness.json --evidence compliance-report.json \
+    --format json --output plan.json
+```
+
+### Three dimensions
+
+Every action is classified as **technical**, **documentation**, or **process**,
+because the most common way a gap is closed without being closed is fixing it
+in the wrong dimension. Writing an oversight policy does not create the
+oversight process; declaring a risk class in a document does not make the
+runtime enforce it.
+
+Each item carries why it matters (in terms of the obligation, not a restatement
+of the title), ordered steps, suggested artifacts, an owner role, its legal
+basis, and — required — how to verify it is actually done.
+
+### What the planner will not do
+
+- **It does not generate guidance.** Advice is looked up in
+  `compliance/remediation/<framework>.yaml`, so the same findings always
+  produce the same plan and a plan can be diffed across runs.
+- **It does not write to your project.** `artifacts` are suggested paths for a
+  human to review (design principle P4 — propose, never apply).
+- **It does not hide what it cannot advise on.** A finding with no authored
+  guidance is reported as *unguided*, never dropped. A shorter plan is not a
+  smaller problem.
+- **It is not legal advice**, and completing a plan does not confer conformity.
+  As of 2026 no harmonised standard is cited in the OJEU, so nothing does.
+
+### Extending the catalog
+
+Guidance is data, not code, so it can be reviewed by someone who does not read
+Python and updated when the regulation moves without touching the planner. Add
+an entry to `compliance/remediation/eu-ai-act-v1.yaml`; it is validated against
+`compliance/schemas/remediation.schema.json`. The test suite fails if any check
+the scanner can emit has no entry, or if an entry lacks a legal basis, an
+owner, or a verification step.
+
 ## CI/CD Integration
 
 Add readiness checks to your CI pipeline:
@@ -220,14 +275,34 @@ jobs:
         run: |
           python -m compliance.src.readiness_scanner \
             --project-dir . \
-            --quiet
-        continue-on-error: false
+            --output readiness.json
+        continue-on-error: true
+      - name: Fail while blocking gaps remain
+        run: |
+          python -m compliance.src.remediation \
+            --readiness readiness.json \
+            --output remediation.md \
+            --fail-on-blocking
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remediation-plan
+          path: remediation.md
 ```
 
-Exit codes:
+Uploading the plan rather than only failing the job matters: a red build that
+says "30% ready" tells the next person nothing, while the attached plan tells
+them which four things block a conformity claim and who owns each.
+
+Exit codes — readiness scanner:
 - `0` - All checks passed
 - `1` - Critical failures detected
 - `2` - Gaps identified (warnings)
+
+Exit codes — remediation planner:
+- `0` - Plan produced (or, with `--fail-on-blocking`, no blocking items remain)
+- `1` - Blocking items remain and `--fail-on-blocking` was set
+- `2` - No guidance catalog for the requested framework
 
 ## Installation
 

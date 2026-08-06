@@ -1,0 +1,669 @@
+version: "1.0"
+framework: eu-ai-act-v1
+jurisdiction: EU
+description: >-
+  Remediation guidance for gaps found against the EU AI Act control catalog and
+  the TrustLayer readiness scanner.
+
+  Guidance is data rather than code so it can be reviewed by someone who does
+  not read Python, and updated when the regulation moves without touching the
+  planner. Each entry names the dimension of work it belongs to, because the
+  most common way a gap is "closed" without being closed is fixing it in the
+  wrong dimension — writing an oversight policy does not create the oversight
+  process, and defining a risk class in a document does not make the runtime
+  enforce it.
+
+  Nothing here is legal advice. Guidance describes what TrustLayer can observe
+  and what the Act's text requires; whether a particular measure is sufficient
+  for a particular system is a determination for the provider and their
+  counsel.
+
+guidance:
+  # --- System identity and classification --------------------------------
+
+  - id: rem-system-registry
+    title: Register the system so it can be assessed at all
+    dimension: documentation
+    applies_to:
+      check_ids: [system-registry]
+    legal_basis: ["Art. 49", "Art. 11"]
+    blocking: true
+    effort: S
+    owner_role: provider
+    why: >-
+      Without a system registry there is no subject for any other obligation:
+      no risk class, no declared purpose, no named owner, and no `agent_id` to
+      tie runtime evidence to. Every other finding in this plan is unreliable
+      until this exists, because the scanner is guessing at what it is looking
+      at.
+    steps:
+      - Copy `compliance/examples/system.yaml` to the project root as `system.yaml`.
+      - Fill in `system.id`, `system.name`, and `system.intended_purpose` in plain language a non-engineer can check.
+      - Set `integration.agent_id` to the value the running agent actually emits, not an aspirational one.
+      - Commit it to the repository so its history is reviewable alongside the code it describes.
+    artifacts:
+      - path: system.yaml
+        change: Create from `compliance/examples/system.yaml` and fill in the system's identity, purpose, and owners.
+    verification: >-
+      `python -m compliance.src.readiness_scanner --project .` reports the
+      `system-registry` check as PASS.
+    references:
+      - compliance/README.md
+
+  - id: rem-risk-classification
+    title: Classify the system against Annex III and record the reasoning
+    dimension: documentation
+    applies_to:
+      check_ids: [risk-classification]
+      control_ids: [art-6.1]
+    legal_basis: ["Art. 6", "Annex III"]
+    blocking: true
+    effort: M
+    owner_role: provider
+    why: >-
+      The risk class decides which obligations apply at all. Getting it wrong
+      in either direction is costly: classifying too low leaves mandatory
+      requirements unmet, and classifying too high imposes a regime the system
+      does not need. An unrecorded classification is also unusable in an
+      assessment — an assessor asks how you concluded it, not what you
+      concluded.
+    steps:
+      - Walk each Annex III heading and record, per heading, whether the system falls under it and why.
+      - Check the Art. 6(3) derogations, which can take an Annex III system out of high-risk when it performs only a narrow procedural task — and note that profiling always keeps it in.
+      - Record the conclusion in `system.yaml` as `risk_class`, and the reasoning next to it rather than in someone's memory.
+      - Have the named business owner sign off; this is a determination with legal consequences, not an engineering call.
+      - Set a review trigger — the classification changes when the intended purpose does.
+    artifacts:
+      - path: system.yaml
+        change: "Set `risk_class:` and add a `risk_classification_rationale:` block citing the Annex III headings considered."
+    verification: >-
+      The rationale names specific Annex III headings and the Art. 6(3)
+      derogation test, and a reviewer who was not present can follow it to the
+      same conclusion.
+    references:
+      - "EU AI Act Art. 6 and Annex III"
+
+  - id: rem-intended-purpose
+    title: State the intended purpose and the uses that are out of scope
+    dimension: documentation
+    applies_to:
+      check_ids: [intended-purpose]
+      control_ids: [art-6.2, art-13.3]
+    legal_basis: ["Art. 6(2)", "Art. 13(3)", "Annex IV(1)"]
+    blocking: true
+    effort: S
+    owner_role: provider
+    why: >-
+      Intended purpose is the reference point for risk assessment, for
+      instructions for use, and for whether a later change counts as
+      substantial modification under Art. 43. A purpose stated only as what the
+      system does — rather than what it is *for*, and what it must not be used
+      for — cannot serve any of those.
+    steps:
+      - Write the intended purpose as one paragraph naming the users, the decisions it informs, and the operating context.
+      - List explicitly excluded uses. This is the half most often skipped, and the half that limits liability.
+      - List the assumptions the system relies on (input quality, population, language, deployment environment).
+      - Record all three in `system.yaml` and mirror them into the user-facing instructions for use.
+    artifacts:
+      - path: system.yaml
+        change: "Add `intended_purpose`, `approved_use_cases`, and an `excluded_uses` list."
+    verification: >-
+      A reader outside the team can decide from the text alone whether a
+      proposed new use is inside or outside scope.
+
+  - id: rem-ownership
+    title: Name the accountable business and technical owners
+    dimension: process
+    applies_to:
+      check_ids: [ownership]
+    legal_basis: ["Art. 14(4)", "Art. 17"]
+    blocking: false
+    effort: S
+    owner_role: business
+    why: >-
+      Art. 14(4) requires oversight to be assigned to identified natural
+      persons with the competence, authority and support to exercise it. An
+      unowned system has nobody to escalate to, nobody to sign a declaration of
+      conformity, and nobody who notices when a control lapses. In practice
+      this is the single most reliable predictor of whether the rest of the
+      plan gets done.
+    steps:
+      - Name a business owner accountable for purpose, risk acceptance and sign-off.
+      - Name a technical owner accountable for the implementation and its monitoring.
+      - Record both as roles *and* named individuals — a role with no name behind it is unowned.
+      - Confirm the oversight owner has the authority to stop or override the system, not merely to observe it.
+    artifacts:
+      - path: system.yaml
+        change: "Populate `owner.business` and `owner.technical`."
+    verification: >-
+      Both named individuals can state, unprompted, what they are accountable
+      for and what authority they hold.
+
+  # --- Data ---------------------------------------------------------------
+
+  - id: rem-data-classification
+    title: Classify the data the system processes
+    dimension: documentation
+    applies_to:
+      check_ids: [data-classification]
+      control_ids: [art-10.2]
+    legal_basis: ["Art. 10(2)", "GDPR Art. 5", "GDPR Art. 9"]
+    blocking: false
+    effort: M
+    owner_role: provider
+    why: >-
+      Data classes determine which safeguards apply, whether a DPIA is needed,
+      and — critically for an agentic system — what must never leave the
+      process. Without them, redaction and egress policy have nothing to act
+      on, and the default becomes "send everything", which is how a compliance
+      workflow turns into a data-protection incident.
+    steps:
+      - Enumerate the categories the system ingests, produces, and logs. Logs are routinely forgotten and routinely contain the most sensitive material.
+      - Flag special categories under GDPR Art. 9 and anything relating to minors.
+      - Record retention and lawful basis per class.
+      - Feed the classification into the guardian policy and the evaluator egress policy so it is enforced, not merely declared.
+    artifacts:
+      - path: system.yaml
+        change: "Populate `data_classes` with one entry per category, including what appears in traces."
+    verification: >-
+      Sample a real trace and confirm every field in it maps to a declared data
+      class. Anything unmapped is either undeclared data or data you should not
+      be logging.
+
+  - id: rem-data-governance
+    title: Establish data governance for training, validation and test sets
+    dimension: process
+    applies_to:
+      control_ids: [art-10.1, art-10.3, art-10.4, art-10.5]
+    legal_basis: ["Art. 10(1)-(5)", "Annex IV(2)(d)"]
+    blocking: true
+    effort: L
+    owner_role: provider
+    why: >-
+      Art. 10 requires data sets to be relevant, representative, and to the
+      best extent possible free of errors and complete, with examination for
+      bias and identification of gaps. This is a standing practice, not a
+      one-off document: a data set that was representative at launch drifts.
+      The Digital Omnibus extended bias-detection data processing to all
+      providers and deployers, so this applies more broadly than it once did.
+    steps:
+      - Document provenance for each data set — origin, collection method, licensing, and consent basis.
+      - Record the design choices behind the split, and what population each set is meant to represent.
+      - Run bias examination against the protected characteristics relevant to the use case, and record both method and result, including negative results.
+      - Record known gaps and shortcomings explicitly. An honest gap list is evidence of governance; its absence reads as an unexamined data set.
+      - Schedule re-examination on a defined cadence and on any material data change.
+    artifacts:
+      - path: docs/data-governance.md
+        change: Create covering provenance, splits, bias examination method and results, and known gaps.
+    verification: >-
+      Each claim in the document points to a dated artifact — a notebook, a
+      report, a data card — rather than to a statement that the work was done.
+
+  # --- Risk management ----------------------------------------------------
+
+  - id: rem-risk-management-system
+    title: Stand up a risk management system that runs continuously
+    dimension: process
+    applies_to:
+      control_ids: [art-9.1, art-9.2, art-9.4, art-9.6, art-9.7, art-9.8]
+    legal_basis: ["Art. 9", "Annex IV(5)"]
+    blocking: true
+    effort: L
+    owner_role: provider
+    why: >-
+      Art. 9 describes a continuous, iterative process across the whole
+      lifecycle — not a document produced once before launch. A risk register
+      last touched at go-live is evidence that the system is *not* being run
+      under Art. 9, which is worse than having none, because it demonstrates
+      the process lapsed.
+    steps:
+      - Identify known and foreseeable risks to health, safety and fundamental rights, for the intended purpose and for reasonably foreseeable misuse.
+      - "For agentic systems, include failure modes that only exist here: goal drift across a long run, delegation to a sub-agent with wider privileges than the caller, and untrusted content reaching a privileged tool."
+      - Estimate and evaluate each risk, then record the mitigation adopted and the residual risk accepted, with who accepted it.
+      - Feed post-market monitoring data back in on a defined cadence — this is the loop that makes it a system rather than a document.
+      - Record the whole thing in a form that can be diffed over time, so an assessor can see the process moving.
+    artifacts:
+      - path: docs/risk-management.md
+        change: Create a risk register with identification, evaluation, mitigation, residual risk, acceptance, and review dates.
+    verification: >-
+      The register has entries dated after go-live, and at least one entry
+      traceable to something observed in production rather than anticipated
+      before it.
+    evidence_hint: >-
+      POLICY_CHECK events with result FAIL or ESCALATE are candidate inputs to
+      risk review — they are the risks the system actually encountered.
+
+  - id: rem-testing-procedures
+    title: Define and run testing procedures against the intended purpose
+    dimension: technical
+    applies_to:
+      check_ids: [testing]
+      control_ids: [art-9.5]
+    legal_basis: ["Art. 9(5)-(8)", "Annex IV(2)(g)"]
+    blocking: false
+    effort: M
+    owner_role: technical
+    why: >-
+      Art. 9 requires testing against preliminarily defined metrics and
+      probabilistic thresholds appropriate to the intended purpose, and Annex
+      IV expects signed test reports. Tests that only prove the code runs say
+      nothing about whether the system is fit for its declared purpose.
+    steps:
+      - Define the metrics and thresholds *before* testing, tied to the intended purpose rather than to what the system happens to score.
+      - Test on data representative of the deployment population, and report performance per relevant sub-population — an aggregate figure hides exactly the disparity Art. 10 and Art. 15 care about.
+      - Include adversarial and misuse cases, not only the happy path.
+      - Retain dated, attributable test reports; Annex IV expects them to be signed.
+      - Wire the suite into CI so a regression is visible when it happens rather than at the next audit.
+    artifacts:
+      - path: tests/
+        change: Add a suite covering the declared metrics and thresholds, including sub-population breakdowns.
+      - path: docs/test-report.md
+        change: Record dated results against the pre-defined thresholds.
+    verification: >-
+      `./scripts/verify.sh test` (or the project equivalent) exits 0 in CI, and
+      the test report shows thresholds fixed before the run.
+
+  # --- Documentation ------------------------------------------------------
+
+  - id: rem-technical-documentation
+    title: Draw up Annex IV technical documentation
+    dimension: documentation
+    applies_to:
+      check_ids: [documentation]
+      control_ids: [art-11.1, art-11.2, art-11.3]
+    legal_basis: ["Art. 11", "Annex IV"]
+    blocking: true
+    effort: L
+    owner_role: provider
+    why: >-
+      Art. 11 requires technical documentation drawn up *before* the system is
+      placed on the market and kept up to date. Annex IV fixes nine sections.
+      Assembling it retrospectively is where most of the cost lands, because
+      the evidence it must cite was never captured at the time.
+    steps:
+      - Work through the nine Annex IV sections in order rather than writing prose and mapping it afterwards.
+      - Cite artifacts that already exist — the risk register, test reports, the data governance document — instead of restating them, so the documentation stays true as they change.
+      - Record third-party tools and components, including model providers, with versions.
+      - Cover the lifecycle-change section (Annex IV(6)) from the start; a change log begun late has no early history to show.
+      - SMEs may supply this in simplified form, but the sections still have to be addressed.
+    artifacts:
+      - path: docs/annex-iv/
+        change: Create one file per Annex IV section, each citing the artifacts that substantiate it.
+    verification: >-
+      Every section resolves to a dated artifact. A section whose only evidence
+      is the section itself is not documented.
+
+  - id: rem-instructions-for-use
+    title: Write instructions for use for deployers
+    dimension: documentation
+    applies_to:
+      control_ids: [art-13.1, art-13.2, art-13.4]
+    legal_basis: ["Art. 13", "Annex IV(3)"]
+    blocking: true
+    effort: M
+    owner_role: provider
+    why: >-
+      Art. 13 requires the system to be transparent enough for deployers to
+      interpret its output and use it appropriately. A deployer who cannot tell
+      what the output means, how accurate it is, or when not to rely on it,
+      cannot discharge their own obligations — and the provider's transparency
+      duty is not satisfied by the system merely working.
+    steps:
+      - State the intended purpose, the deployer's responsibilities, and the human oversight measures the deployer must operate.
+      - Give accuracy and performance figures with the conditions they hold under, including where performance degrades.
+      - Describe foreseeable misuse and the circumstances in which output should not be relied on.
+      - Explain how to interpret the output, in the vocabulary of the deployer's domain rather than the model's.
+      - Include the expected lifetime, and the maintenance and update arrangements.
+    artifacts:
+      - path: docs/instructions-for-use.md
+        change: Create covering purpose, performance and its limits, oversight duties, and misuse.
+    verification: >-
+      Someone in the deployer role, without access to the team, can operate the
+      system correctly from this document alone.
+
+  # --- Logging and record-keeping ----------------------------------------
+
+  - id: rem-trace-integration
+    title: Instrument the agent so it emits trace events
+    dimension: technical
+    applies_to:
+      check_ids: [trace-integration]
+      control_ids: [art-12.1, art-12.4]
+    legal_basis: ["Art. 12(1)", "Art. 12(4)"]
+    blocking: true
+    effort: M
+    owner_role: technical
+    why: >-
+      Art. 12 requires automatic recording of events over the system's
+      lifetime, and Commission guidance on agentic workflows reads that as
+      covering the intermediate steps, not only final outputs. Without
+      instrumentation there is no runtime evidence for any control, and every
+      compliance claim reduces to a document asserting itself.
+    steps:
+      - Install the SDK for the agent's language (`sdks/python`, `sdks/typescript`, `sdks/go`).
+      - Set `integration.agent_id` in `system.yaml` to the identifier the agent actually emits, and keep them equal — evidence is matched on it.
+      - "Emit the full lifecycle, not just the ends: TOOL_CALL, TOOL_RESULT, LLM_CALL and POLICY_CHECK, with AGENT_START / AGENT_END bounding the session."
+      - Point the SDK at a running guardian and confirm events arrive with `GET /v1/events`.
+      - Keep instrumentation fail-open — it must never take down the host agent (design principle P9).
+    artifacts:
+      - path: system.yaml
+        change: "Set `integration.agent_id` and `integration.trace_endpoint`."
+    verification: >-
+      `curl "$GUARDIAN/v1/events?agent_id=<id>&limit=5"` returns events from a
+      real run, not from a smoke test.
+    evidence_hint: >-
+      Any control with an evidence query is unsatisfiable until this is done —
+      expect a cascade of gaps to close once traces flow.
+
+  - id: rem-log-retention-and-integrity
+    title: Retain logs for the statutory period and make them tamper-evident
+    dimension: technical
+    applies_to:
+      control_ids: [art-12.2, art-12.3]
+    legal_basis: ["Art. 12", "Art. 18", "Art. 19"]
+    blocking: true
+    effort: M
+    owner_role: technical
+    why: >-
+      Logs must be retained at least six months (24 for biometric and law
+      enforcement) and be usable in an assessment. A log an operator can
+      silently edit carries no weight, and a retention policy that deletes on a
+      size cap will eventually destroy exactly the window an incident
+      investigation needs.
+    steps:
+      - Run the guardian with a file-backed or Postgres store, never in-memory, for anything whose evidence matters.
+      - Set `TRUSTLAYER_RETENTION_MIN_DAYS` to your statutory floor — 180 by default, 730 for biometric or law-enforcement systems.
+      - Set `TRUSTLAYER_SIGNING_KEY` so chain checkpoints are signed, and publish the public key to your auditors out of band.
+      - Archive `events.archive.jsonl` to cold storage on a schedule; Art. 18 pushes related documentation to a ten-year horizon.
+      - Alert on `trustlayer_retention_floor_blocked_total` — it rising means add disk, never lower the floor.
+      - "Schedule `GET /v1/integrity/verify` and alert on `ok: false`."
+    artifacts:
+      - path: docs/SCALING.md
+        change: Follow "Evidence retention and integrity"; record the chosen floor and archive destination for this deployment.
+    verification: >-
+      `GET /v1/integrity/verify` returns `ok: true`, and
+      `GET /v1/integrity/checkpoints` returns signed checkpoints whose
+      signatures verify against a key you hold independently.
+
+  # --- Human oversight ----------------------------------------------------
+
+  - id: rem-human-oversight-design
+    title: Design human oversight that can actually intervene
+    dimension: process
+    applies_to:
+      check_ids: [human-oversight]
+      control_ids: [art-14.1, art-14.2, art-14.3, art-14.4]
+    legal_basis: ["Art. 14"]
+    blocking: true
+    effort: L
+    owner_role: business
+    why: >-
+      Art. 14 requires oversight measures that let a named person understand
+      the system's limits, remain alert to automation bias, interpret output,
+      decide not to use it, and intervene or halt it. Oversight that can only
+      observe is not oversight, and a human placed in the loop with no time and
+      no authority to say no supplies the appearance of control without its
+      substance.
+    steps:
+      - Identify the decision points where a human must be able to intervene, and be specific about which decisions they are.
+      - Give the oversight role the authority to stop the system, not only to be informed of it.
+      - Make the intervention affordance available at the moment of the decision — an override that requires a ticket is not an override.
+      - "Address automation bias explicitly: state what the reviewer is expected to check independently rather than accept."
+      - Emit a HUMAN_ESCALATION event at each such point so oversight leaves evidence; an intervention nobody recorded cannot be shown to have happened.
+      - Assign the role to named, competent individuals with the time to do it.
+    artifacts:
+      - path: system.yaml
+        change: "Populate `human_oversight.type` and `human_oversight.approval_points`."
+      - path: docs/human-oversight.md
+        change: Describe each intervention point, the authority held, and the competence required.
+    verification: >-
+      Trace evidence shows HUMAN_ESCALATION events at the declared points, with
+      outcomes recorded — including at least one where the human decided
+      against the system's proposal.
+    evidence_hint: >-
+      Query HUMAN_ESCALATION events and check their *outcome*, not merely their
+      presence. Escalations that are always approved indicate a rubber stamp.
+
+  - id: rem-guardian-policy
+    title: Enforce the declared constraints in a runtime policy
+    dimension: technical
+    applies_to:
+      check_ids: [guardian-policy]
+    legal_basis: ["Art. 9(4)", "Art. 15(3)"]
+    blocking: false
+    effort: M
+    owner_role: technical
+    why: >-
+      A constraint recorded only in a document is a constraint the running
+      system does not have. A guardian policy turns declared limits into
+      decisions that are made and recorded at runtime — which is also what
+      turns them into evidence.
+    steps:
+      - Translate each declared constraint into a policy rule; start with the ones whose breach would be a reportable incident.
+      - "Set the Cynefin default deliberately: CHAOTIC should escalate rather than pass, and a rule that never fires deserves review."
+      - Point the agent at the guardian and confirm POLICY_CHECK events are emitted for every adjudicated call.
+      - Review FAIL and ESCALATE verdicts on a schedule — they are the risk register's live feed.
+    artifacts:
+      - path: policies/default.json
+        change: Add rules implementing the declared constraints.
+      - path: system.yaml
+        change: "Set `integration.guardian_policy`."
+    verification: >-
+      `curl "$GUARDIAN/v1/events?event_type=POLICY_CHECK&limit=20"` shows real
+      adjudications, including at least one non-PASS.
+
+  # --- Accuracy, robustness, cybersecurity --------------------------------
+
+  - id: rem-accuracy-robustness-security
+    title: Declare accuracy and harden the system against error and attack
+    dimension: technical
+    applies_to:
+      control_ids: [art-15.1, art-15.2, art-15.3, art-15.4]
+    legal_basis: ["Art. 15", "Annex IV(2)(h)"]
+    blocking: true
+    effort: L
+    owner_role: technical
+    why: >-
+      Art. 15 requires an appropriate level of accuracy, robustness and
+      cybersecurity across the lifecycle, with accuracy levels declared in the
+      instructions for use. For agentic systems the cybersecurity limb is not
+      generic application security: prompt injection reaching a privileged
+      tool, and a sub-agent inheriting authority it was never granted, are the
+      failure modes specific to this architecture.
+    steps:
+      - Declare accuracy metrics and their measured values in the instructions for use, with the conditions they hold under.
+      - Test resilience to malformed, adversarial and out-of-distribution input, and to component failure.
+      - Constrain tool privilege by task rather than granting the agent the union of everything it might need.
+      - Treat retrieved and user-supplied content as untrusted all the way to the tool boundary; log where untrusted content precedes a privileged call.
+      - "Establish a fallback: what the system does when a component fails, and how it fails safe rather than open."
+    artifacts:
+      - path: docs/instructions-for-use.md
+        change: Add declared accuracy levels and the conditions under which they hold.
+      - path: docs/security-assessment.md
+        change: Record the threat model, including agent-specific attack paths, and the mitigations adopted.
+    verification: >-
+      An adversarial test suite exists and runs in CI; the declared accuracy
+      figures trace to a dated test report.
+
+  # --- Art. 50 transparency ------------------------------------------------
+
+  - id: rem-art-50-disclosure
+    title: Disclose to people that they are interacting with an AI system
+    dimension: technical
+    applies_to:
+      check_ids: [art-50.1]
+    legal_basis: ["Art. 50(1)"]
+    blocking: true
+    effort: S
+    owner_role: provider
+    why: >-
+      Art. 50(1) has applied since 2026-08-02 and was untouched by the Digital
+      Omnibus retiming. Where a person interacts with an AI system, they must
+      be informed unless it is obvious to a reasonably well-informed person.
+      This is one of the cheapest obligations to satisfy and one of the most
+      visible to fail.
+    steps:
+      - Show the disclosure at the first point of interaction, not buried in terms of service.
+      - Emit a DISCLOSURE_SHOWN event carrying the surface, locale and the notice text actually displayed.
+      - Cover every entry point — a disclosure on the web UI does nothing for the API, the voice channel, or the embedded widget.
+      - Localise it; a notice in a language the user does not read has not informed anyone.
+    artifacts:
+      - path: system.yaml
+        change: "Record the disclosure surfaces under `transparency`."
+    verification: >-
+      `GET /v1/events?event_type=DISCLOSURE_SHOWN` returns one event per
+      interaction surface, with the text that was actually shown.
+    evidence_hint: >-
+      Check coverage per surface, not total count — a high count from one
+      surface hides an undisclosed one.
+
+  - id: rem-art-50-content-marking
+    title: Mark synthetic content machine-readably
+    dimension: technical
+    applies_to:
+      check_ids: [art-50.2]
+    legal_basis: ["Art. 50(2)"]
+    blocking: false
+    effort: M
+    owner_role: provider
+    why: >-
+      Art. 50(2) requires machine-readable marking of synthetic audio, image,
+      video and text, and applies from 2026-12-02 with a three-month grace for
+      systems placed on the market before August 2026. Marking must be
+      effective, interoperable, robust and reliable as far as technically
+      feasible — a claim that content was marked is not the same as content
+      that carries a mark.
+    steps:
+      - Choose an established marking scheme (C2PA content credentials, or a watermark appropriate to the modality) rather than an ad-hoc convention.
+      - Apply it at generation time, where the provenance is known, not in a later pass that has to infer it.
+      - Emit a CONTENT_MARKED event with a `verification` block recording what was checked, not merely that marking was requested.
+      - Verify a sample of output independently and confirm the mark survives the transformations your pipeline actually applies.
+      - Record where marking is not technically feasible and why — the Act asks for feasibility, and an honest exception is defensible where a silent omission is not.
+    artifacts:
+      - path: docs/content-marking.md
+        change: Record the scheme, where it is applied, and any documented infeasibility.
+    verification: >-
+      Take output from production and verify the mark with a third-party tool.
+      `CONTENT_MARKED` events without independent verification record a claim,
+      not a fact.
+    evidence_hint: >-
+      Look for CONTENT_MARKED events whose payload carries a verification
+      result. Events asserting marking with nothing verifying it are the gap.
+
+  - id: rem-art-50-deepfake-labelling
+    title: Label deepfakes and AI-generated public-interest text
+    dimension: process
+    applies_to:
+      check_ids: [art-50.3]
+    legal_basis: ["Art. 50(4)"]
+    blocking: false
+    effort: S
+    owner_role: deployer
+    why: >-
+      Deployers generating deepfakes must disclose that the content is
+      artificially generated or manipulated, and text published to inform the
+      public on matters of public interest must be labelled unless it underwent
+      human editorial review with someone holding editorial responsibility.
+      This is a deployer obligation, so it is routinely missed by providers who
+      assume the duty stopped with them.
+    steps:
+      - Identify whether the deployment produces deepfake content or public-interest text at all; if not, record that determination rather than leaving the control unanswered.
+      - Apply a visible label at the point of publication.
+      - Where relying on the editorial-review exemption, record who holds editorial responsibility — the exemption rests on a named person, not on a process.
+    artifacts:
+      - path: docs/instructions-for-use.md
+        change: State the deployer's labelling obligations and the exemption conditions.
+    verification: >-
+      Published samples carry the label, or a dated record shows the editorial
+      review exemption applies and who holds responsibility.
+
+  # --- Cross-cutting process ----------------------------------------------
+
+  - id: rem-post-market-monitoring
+    title: Run post-market monitoring as a standing activity
+    dimension: process
+    applies_to:
+      control_ids: [art-9.3, art-12.3]
+    legal_basis: ["Art. 72", "Art. 9(3)", "Annex IV(9)"]
+    blocking: false
+    effort: L
+    owner_role: provider
+    why: >-
+      Art. 72 requires a post-market monitoring plan and its active operation,
+      and Art. 9(3) requires that data to feed back into risk management.
+      Because high-risk obligations were deferred to 2027-12-02, the evidence
+      will be assessed against a *longer* operating history than it once would
+      have been — monitoring started now is worth more in 2027 than any
+      document bought in late 2027.
+    steps:
+      - "Write the monitoring plan: what is collected, how often it is reviewed, by whom, and what triggers action."
+      - Define thresholds that trigger investigation before someone complains.
+      - Review policy verdicts, escalation outcomes and error rates on the stated cadence, and record that the review happened.
+      - Feed findings into the risk register, closing the Art. 9(3) loop.
+      - Connect it to the incident path so a monitoring finding can become an Art. 73 report without a standing start.
+    artifacts:
+      - path: docs/post-market-monitoring.md
+        change: Create the plan with metrics, thresholds, cadence, owners, and escalation triggers.
+    verification: >-
+      Dated review records exist for the last several cycles, and at least one
+      shows a finding that changed something.
+
+  - id: rem-incident-reporting-readiness
+    title: Be ready to report a serious incident inside the statutory clock
+    dimension: process
+    applies_to:
+      control_ids: [art-12.2]
+    legal_basis: ["Art. 73"]
+    blocking: false
+    effort: M
+    owner_role: provider
+    why: >-
+      Art. 73 deadlines are short — 15 days generally, 10 for a death, and 2
+      for widespread infringement or critical-infrastructure disruption, with
+      an initial report permitted while investigation continues. A team
+      assembling the reporting path during the incident will miss them. The
+      classification of an incident as "serious" is a legal determination, so
+      the decision path needs to exist before it is needed.
+    steps:
+      - Identify the market surveillance authority for each member state you operate in, before you need them.
+      - "Write the decision path: who classifies an incident as serious, on what criteria, and within how long."
+      - Pre-draft the report against the Commission template so only the facts are missing under time pressure.
+      - Rehearse retrieving the relevant trace window and its integrity verification — this is the part that is slow in practice.
+      - Record the clock start explicitly; the deadline runs from awareness of the causal link, not from the incident.
+    artifacts:
+      - path: docs/incident-response.md
+        change: Create with authority contacts, classification criteria, owners, deadlines, and the evidence-retrieval runbook.
+    verification: >-
+      A tabletop exercise produces a draft report and the supporting verified
+      trace window inside the tightest applicable deadline.
+
+  - id: rem-substantial-modification-tracking
+    title: Track changes so substantial modification can be recognised
+    dimension: process
+    applies_to:
+      control_ids: [art-11.1]
+    legal_basis: ["Art. 43(4)", "Annex IV(6)"]
+    blocking: false
+    effort: M
+    owner_role: technical
+    why: >-
+      A substantial modification can require conformity assessment to be
+      redone, and Annex IV(6) requires lifecycle changes to be documented. For
+      an agentic system the harness changes constantly — a swapped model, a new
+      tool, a rewritten system prompt — and none of it appears in a
+      conventional change log. Whether a given change is *substantial* is a
+      legal determination; the point of tracking is that a human can be asked.
+    steps:
+      - "Record a fingerprint of the harness per run: model and version, tool inventory, prompt hashes, and policy version."
+      - Diff it across runs and surface changes for review rather than trying to classify them automatically.
+      - Route material changes — new tool, new model, changed purpose — to the named owner for a substantiality decision.
+      - Record the decision and its reasoning, including the changes judged *not* substantial. That record is what shows the judgement was exercised.
+    artifacts:
+      - path: docs/change-log.md
+        change: Record harness changes with dates, diffs, and substantiality determinations.
+    verification: >-
+      The change log covers the period since go-live with no unexplained gaps,
+      and shows determinations rather than only descriptions.
+    evidence_hint: >-
+      Where the harness is instrumented, changes in the tool inventory or model
+      identifier between sessions are the signal to review.

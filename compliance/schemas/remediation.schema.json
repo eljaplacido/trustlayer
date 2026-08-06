@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trustlayer.dev/schemas/remediation.schema.json",
+  "title": "TrustLayer Remediation Guidance Catalog",
+  "description": "Machine-readable guidance for closing a compliance gap. Guidance is data, not code: a regulation changes far more often than a planner does, and a catalog can be reviewed by someone who does not read Python. Every entry states its legal basis, the dimension of work it belongs to (technical / documentation / process), and how to verify it is actually done.",
+  "type": "object",
+  "required": ["version", "framework", "guidance"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Catalog version, independent of the control framework's."
+    },
+    "framework": {
+      "type": "string",
+      "description": "Control framework this guidance accompanies (e.g. 'eu-ai-act-v1')."
+    },
+    "description": { "type": "string" },
+    "jurisdiction": {
+      "type": "string",
+      "description": "Legal jurisdiction, so guidance written for the EU is not silently applied elsewhere."
+    },
+    "guidance": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/guidance" }
+    },
+    "$defs_note": {
+      "type": "string",
+      "description": "Reserved for catalog authors' notes; ignored by the planner."
+    }
+  },
+  "$defs": {
+    "guidance": {
+      "type": "object",
+      "required": ["id", "title", "dimension", "applies_to", "why", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^rem-[a-z0-9][a-z0-9.-]*$",
+          "description": "Stable identifier. Cited in generated plans so a plan can be traced back to the guidance that produced it."
+        },
+        "title": {
+          "type": "string",
+          "description": "Imperative summary of the action, e.g. 'Classify the system against Annex III'."
+        },
+        "dimension": {
+          "type": "string",
+          "enum": ["technical", "documentation", "process"],
+          "description": "technical = code, configuration or instrumentation; documentation = an artifact a reader or auditor consumes; process = a recurring human activity with an owner and a cadence. A gap closed in the wrong dimension is the most common failure: writing a policy document does not create the process that executes it."
+        },
+        "applies_to": {
+          "type": "object",
+          "description": "When this guidance fires. At least one selector is required; an entry that matches nothing is a catalog authoring error, not a silent no-op.",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "check_ids": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Readiness check identifiers (readiness_scanner)."
+            },
+            "control_ids": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Control identifiers from the framework catalog (evidence_linker)."
+            },
+            "statuses": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["FAIL", "GAP", "SKIP", "PARTIAL", "MISSING"]
+              },
+              "description": "Statuses this guidance responds to. Omitted means every non-passing status. 'PASS' is deliberately not permitted: guidance for something already satisfied is noise that buries the real work."
+            }
+          }
+        },
+        "legal_basis": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Article and annex references, e.g. ['Art. 9(2)', 'Annex IV(5)']. Present so a reader can check the claim rather than trust it."
+        },
+        "blocking": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when the gap blocks a conformity claim outright, as opposed to weakening it. Drives ordering."
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["S", "M", "L"],
+          "default": "M",
+          "description": "S = under a day; M = days; L = weeks or a standing commitment. An estimate for sequencing, never a quote."
+        },
+        "owner_role": {
+          "type": "string",
+          "enum": ["provider", "deployer", "technical", "business", "legal"],
+          "description": "Who must act. Named because the single most common reason a gap stays open is that no role owned it."
+        },
+        "why": {
+          "type": "string",
+          "description": "What goes wrong if this is left open, in terms of the obligation. Not a restatement of the title."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Ordered, concrete actions. Each should be executable by the named owner without further interpretation."
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "Files this work creates or changes. Paths are suggestions for review — nothing is ever written automatically (design principle P4).",
+          "items": {
+            "type": "object",
+            "required": ["path", "change"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "change": { "type": "string" }
+            }
+          }
+        },
+        "verification": {
+          "type": "string",
+          "description": "How to demonstrate the gap is closed — ideally a command or an evidence query, not an assertion. Guidance with no verification step produces work nobody can confirm."
+        },
+        "evidence_hint": {
+          "type": "string",
+          "description": "Which runtime evidence would substantiate this control once the work is done, phrased for an evidence query author."
+        },
+        "references": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Links or citations for further reading."
+        }
+      }
+    }
+  }
+}

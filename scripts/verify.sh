@@ -30,7 +30,11 @@ run_tests() {
     cd "$ROOT/compliance"
     ruff format --check src/ tests/
     ruff check src/ tests/
-    (cd "$ROOT" && MYPYPATH=. mypy -p compliance.src)
+    # Run from the repo root so `compliance.src` resolves, but point mypy at
+    # this package's config explicitly — otherwise it looks for one next to the
+    # working directory, finds none, and silently runs with defaults, which
+    # would leave the Phase 8 typing gate switched off without failing.
+    (cd "$ROOT" && MYPYPATH=. mypy --config-file compliance/pyproject.toml -p compliance.src)
     python3 -m pytest --tb=short -q
   )
   (

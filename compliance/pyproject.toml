@@ -22,6 +22,20 @@ dev = [
 testpaths = ["tests"]
 pythonpath = [".."]
 
+# Phase 8 engineering contract (docs/PHASE-8-DESIGN.md 5.2). Enabled package-
+# wide rather than per-module: a typing gate that only new files honour drifts
+# back the moment someone edits an old one.
+[tool.mypy]
+python_version = "3.11"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+strict_equality = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
