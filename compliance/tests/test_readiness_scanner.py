@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
-from compliance.src.readiness_scanner import ReadinessScanner
+from compliance.src import readiness_scanner
+from compliance.src.readiness_scanner import (
+    PASS_ONLY_CHECK_IDS,
+    REMEDIABLE_CHECK_IDS,
+    ReadinessScanner,
+)
 
 
 def write_system(project: Path, body: str) -> None:
@@ -127,3 +133,112 @@ def test_scan_reports_art50_gap_for_missing_disclosure(tmp_path: Path) -> None:
     art50_1 = next(c for c in report.checks if c.check_id == "art-50.1")
     assert art50_1.status == "GAP"
     assert "disclosure" in art50_1.details.lower()
+
+
+def test_scan_treats_declared_non_applicability_as_a_recorded_determination(
+    tmp_path: Path,
+) -> None:
+    """`article_50.enabled: false` is an answer, not a gap.
+
+    Reporting it as a gap conflates "the obligation applies and is unmet" with
+    "the obligation was considered and found inapplicable", producing a
+    permanent false finding. A tool that is always red about something correct
+    trains people to ignore it.
+
+    Found by pointing the scanner at TrustLayer's own `system.yaml`
+    (design principle P8 — dogfood).
+    """
+    write_system(
+        tmp_path,
+        """system:
+  id: demo
+  name: Demo
+  provider_role: provider
+  risk_class: minimal-risk
+  approved_use_cases: [demo]
+  owner: {business: owner, technical: maintainer}
+  data_classes: [public_data]
+  human_oversight: {type: human-in-command, approval_points: [release]}
+  integration: {agent_id: demo-agent, guardian_policy: default}
+  article_50:
+    enabled: false
+    disclosure_config:
+      disclose_ai_interaction: false
+""",
+    )
+    (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+
+    report = ReadinessScanner(tmp_path).scan_readiness()
+    ids = {c.check_id for c in report.checks}
+
+    assert "art-50.applicability" in ids
+    assert not {"art-50.1", "art-50.2", "art-50.3"} & ids, (
+        "the per-obligation checks must not also run once Art. 50 is declared "
+        "inapplicable — they would contradict the determination"
+    )
+
+    applicability = next(c for c in report.checks if c.check_id == "art-50.applicability")
+    assert applicability.status == "PASS"
+    # The determination must stay visible rather than becoming a silent green.
+    assert "determination" in applicability.details.lower()
+    assert "not a verified fact" in applicability.details.lower()
+
+
+def test_declared_non_applicability_still_requires_the_flag_to_be_explicit(
+    tmp_path: Path,
+) -> None:
+    """Omitting `enabled` is not the same as setting it to false.
+
+    A missing field means nobody decided; only an explicit `false` records a
+    determination. Treating absence as a determination would let a system opt
+    out of Art. 50 by forgetting about it.
+    """
+    write_system(
+        tmp_path,
+        """system:
+  id: demo
+  name: Demo
+  provider_role: provider
+  risk_class: minimal-risk
+  approved_use_cases: [demo]
+  owner: {business: owner, technical: maintainer}
+  data_classes: [public_data]
+  human_oversight: {type: human-in-command, approval_points: [release]}
+  integration: {agent_id: demo-agent, guardian_policy: default}
+  article_50:
+    disclosure_config:
+      disclose_ai_interaction: false
+""",
+    )
+    (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+
+    report = ReadinessScanner(tmp_path).scan_readiness()
+    ids = {c.check_id for c in report.checks}
+
+    assert "art-50.applicability" not in ids
+    assert next(c for c in report.checks if c.check_id == "art-50.1").status == "GAP"
+
+
+def test_declared_check_ids_stay_in_sync_with_the_source() -> None:
+    """`REMEDIABLE_CHECK_IDS` is the contract the remediation catalog is tested
+    against. If a new check is added here without updating the declaration, the
+    completeness test in `test_remediation.py` would keep passing while a real
+    gap shipped with no guidance — the silent failure this guard exists to stop.
+    """
+    source = Path(readiness_scanner.__file__).read_text(encoding="utf-8")
+    # Only literals inside `ReadinessCheck(...)` calls, not the declaration
+    # block itself, which is a plain set of strings.
+    emitted = set(re.findall(r'check_id="([^"]+)"', source))
+
+    declared = REMEDIABLE_CHECK_IDS | PASS_ONLY_CHECK_IDS
+
+    assert emitted - declared == set(), (
+        f"checks emitted but not declared: {sorted(emitted - declared)}. "
+        "Add them to REMEDIABLE_CHECK_IDS (and write remediation guidance), "
+        "or to PASS_ONLY_CHECK_IDS if the check can never fail."
+    )
+    assert declared - emitted == set(), (
+        f"checks declared but never emitted: {sorted(declared - emitted)}"
+    )

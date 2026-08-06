@@ -245,6 +245,23 @@ closes named ones.
   Findings with no guidance are reported as `unguided`, never dropped.
   Proposal-only — nothing is written to a user's project (P4). CI can gate with
   `--fail-on-blocking`.
+- [x] **Dogfood (P8).** TrustLayer now registers itself in a root `system.yaml`
+  and CI publishes its own remediation plan as a build artifact. Two real
+  defects came out of pointing the tooling at its own repository:
+  1. `system.schema.json`'s `data_classes` enum has no category for agent
+     trace data. Worked around with the nearest honest mapping
+     (`personal_data`, `proprietary_data`) and a comment saying so; the schema
+     revision belongs to Slice 8.2.
+  2. The scanner reported an explicitly declared `article_50.enabled: false`
+     as a GAP, conflating "the obligation applies and is unmet" with "it was
+     considered and found inapplicable". Fixed: a recorded determination now
+     yields `art-50.applicability` PASS whose details state plainly that it is
+     the provider's determination and not a verified fact. A tool that is
+     permanently red about something correct trains people to ignore it.
+  - **TrustLayer scores 100% on its own readiness scanner.** That number is
+    *not* a compliance claim — it is a live demonstration of gap G4, since
+    every check in the scanner is a field-presence check. Assurance tiers
+    (Slice 8.2) are what make the score mean something.
 - [ ] Slice 8.2 — evidence query v2 + assurance tiers (ADR-018, G3/G4/G9)
 - [ ] Slice 8.3 — agentic trust model (ADR-019, G7/G8/G10)
 - [ ] Slice 8.4 — `evaluators/` package (ADR-020, G11)

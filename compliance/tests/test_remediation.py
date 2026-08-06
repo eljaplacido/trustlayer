@@ -19,7 +19,7 @@ from typing import Any
 
 import jsonschema
 import pytest
-from compliance.src.readiness_scanner import ReadinessScanner
+from compliance.src.readiness_scanner import REMEDIABLE_CHECK_IDS, ReadinessScanner
 from compliance.src.remediation import (
     ACTIONABLE_STATUSES,
     DISCLAIMER,
@@ -446,12 +446,7 @@ def test_shipped_catalog_covers_every_check_the_scanner_can_emit() -> None:
     _, entries = shipped_catalog()
     covered = {check_id for e in entries for check_id in e.check_ids}
 
-    scanner_source = (REPO_ROOT / "compliance" / "src" / "readiness_scanner.py").read_text(
-        encoding="utf-8"
-    )
-    emitted = set(re.findall(r'check_id="([^"]+)"', scanner_source))
-
-    missing = emitted - covered
+    missing = REMEDIABLE_CHECK_IDS - covered
     assert not missing, f"readiness checks with no remediation guidance: {sorted(missing)}"
 
 

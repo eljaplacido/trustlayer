@@ -154,6 +154,11 @@ impl CheckpointSigner {
     /// are a supported mode, not an error. A value that is set but unusable is
     /// an error: silently degrading to unsigned would let a deployment believe
     /// it is signing when it is not.
+    ///
+    /// **Prefer the file form.** An environment variable holding the seed is
+    /// readable from `/proc/<pid>/environ`, shows up in container inspection,
+    /// and is routinely captured by supervisors and crash reporters. The inline
+    /// form exists for scratch environments; `docs/SCALING.md` says so too.
     pub fn from_env() -> Result<Option<Self>> {
         let Ok(raw) = std::env::var("TRUSTLAYER_SIGNING_KEY") else {
             return Ok(None);

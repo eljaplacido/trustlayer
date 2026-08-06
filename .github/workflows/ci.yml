@@ -208,9 +208,33 @@ jobs:
           ruff check src/ tests/
       - name: MyPy typecheck
         working-directory: .
-        run: MYPYPATH=. mypy -p compliance.src
+        # --config-file is required: from the repo root mypy finds no config
+        # and silently runs with defaults, which switches the Phase 8 typing
+        # gate off without failing the job.
+        run: MYPYPATH=. mypy --config-file compliance/pyproject.toml -p compliance.src
       - name: Pytest
         run: python -m pytest --tb=short -q
+
+      # Dogfood (design principle P8): TrustLayer scans itself and publishes
+      # its own remediation plan. A governance tool that has not been pointed
+      # at its own repository is making a claim it has not tested.
+      - name: Readiness scan of this repository
+        working-directory: .
+        continue-on-error: true
+        run: |
+          python -m compliance.src.readiness_scanner \
+            --project-dir . --output readiness.json
+      - name: Remediation plan for this repository
+        working-directory: .
+        run: |
+          python -m compliance.src.remediation \
+            --readiness readiness.json --output remediation.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trustlayer-remediation-plan-py${{ matrix.python-version }}
+          path: remediation.md
+          if-no-files-found: warn
 
   security:
     name: "Dependency and secret hygiene"

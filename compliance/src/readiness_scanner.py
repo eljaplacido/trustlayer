@@ -15,6 +15,38 @@ from typing import Any
 
 from compliance.src.validation import load_yaml_mapping, validate_document
 
+#: Check ids this scanner can emit with a non-passing status.
+#:
+#: Declared here rather than inferred, so the remediation catalog can be tested
+#: for completeness against a stable list instead of against a regex over this
+#: file. `test_readiness_scanner.py` guards the declaration against the source,
+#: so it cannot rot.
+#:
+#: `art-50.applicability` is deliberately absent: it only ever reports PASS,
+#: because it records that a provider determined Art. 50 inapplicable. Guidance
+#: for it would be dead.
+REMEDIABLE_CHECK_IDS: frozenset[str] = frozenset(
+    {
+        "art-50.1",
+        "art-50.2",
+        "art-50.3",
+        "data-classification",
+        "documentation",
+        "guardian-policy",
+        "human-oversight",
+        "intended-purpose",
+        "ownership",
+        "risk-classification",
+        "system-registry",
+        "testing",
+        "trace-integration",
+    }
+)
+
+#: Checks that can only ever pass. Kept explicit so the guard test can tell a
+#: pass-only check from one whose guidance was forgotten.
+PASS_ONLY_CHECK_IDS: frozenset[str] = frozenset({"art-50.applicability"})
+
 
 @dataclass
 class ReadinessCheck:
@@ -428,7 +460,32 @@ class ReadinessScanner:
         # Article 50 transparency checks
         article_50 = system.get("article_50", {})
 
-        if article_50:
+        # A recorded determination that Art. 50 does not apply is a compliance
+        # answer, and a good one — "does not apply, and here is why" is what an
+        # assessor wants. Reporting it as a gap conflates "the obligation
+        # applies and is unmet" with "the obligation was considered and found
+        # inapplicable", which produces a permanent false finding. A tool that
+        # is always red about something correct trains people to ignore it,
+        # which costs more than the finding was ever worth.
+        #
+        # The determination itself is the provider's and is stated in the
+        # details so it stays visible and auditable rather than becoming a
+        # silent green.
+        if article_50 and article_50.get("enabled") is False:
+            checks.append(
+                ReadinessCheck(
+                    check_id="art-50.applicability",
+                    check_title="Art 50: Applicability",
+                    status="PASS",
+                    details=(
+                        "Recorded as not applicable (article_50.enabled: false). "
+                        "This is the provider's determination, not a verified fact — "
+                        "an assessor will ask for the reasoning behind it."
+                    ),
+                    priority="critical",
+                )
+            )
+        elif article_50:
             # Resolve nested disclosure_config with flat-field fallback
             disclosure_config = article_50.get("disclosure_config")
             if disclosure_config is None:

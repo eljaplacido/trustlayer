@@ -43,5 +43,22 @@ examples/.demo_traces.jsonl
 events.jsonl
 *.jsonl.compacting
 core-rs/events.jsonl
+# Art. 12 evidence sidecars (ADR-017). Traces carry prompts, responses and
+# potentially personal data; none of it belongs in a public repository.
+*.jsonl.chain
+*.archive.jsonl
+*.checkpoints.jsonl
+
+# Ed25519 checkpoint signing keys. A committed signing key is a signing key
+# that no longer signs anything meaningful — rotate immediately if one lands.
+*.signing.key
+signing.key
+trustlayer-signing-*
+
+# Compliance scan output. Regenerated on demand and, for third-party projects,
+# potentially confidential.
+readiness.json
+remediation.md
+compliance-report.json
 .routekit/
 .verify-venv/

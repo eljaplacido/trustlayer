@@ -1,0 +1,101 @@
+# TrustLayer's registry for itself (design principle P8 — dogfood).
+#
+# A governance tool that has not been pointed at its own repository is making
+# a claim it has not tested. CI scans this file and publishes the resulting
+# remediation plan as a build artifact, so TrustLayer's own open gaps are as
+# visible as anyone else's.
+#
+# Note the honest classification below: TrustLayer is *not* itself a high-risk
+# AI system under Annex III. It is infrastructure that other systems use to
+# demonstrate compliance. Claiming a higher risk class than the Act assigns
+# would be the same category of dishonesty this project exists to prevent —
+# and it would put the registry out of step with reality, which is the failure
+# mode that makes registries worthless.
+system:
+  id: trustlayer
+  name: "TrustLayer"
+  description: |
+    Open governance, observability, and trust middleware for agentic AI
+    systems. Intercepts tool calls, evaluates policies, records tamper-evident
+    evidence, and produces compliance artifacts for the systems built on it.
+
+    TrustLayer processes evidence *about* AI systems. Its own AI use is the
+    Hermes reflection subagent and the (Phase 8.4) evaluator layer, both of
+    which emit AgentTraceEvents through this same pipeline.
+  provider_role: provider
+  # Minimal-risk: TrustLayer performs no Annex III function. It is an
+  # evidence and observability layer, not a system making or informing
+  # decisions about people. The systems instrumented *with* it are where the
+  # risk classification question actually lives.
+  risk_class: minimal-risk
+  domain: software-infrastructure
+  owner:
+    business: "Elja Ilari Suhonen"
+    technical: "Elja Ilari Suhonen"
+    security: "Elja Ilari Suhonen"
+  data_classes:
+    # Traces carry whatever the instrumented agent emitted. That is exactly
+    # why data minimisation and an egress policy are P7 rather than a
+    # nice-to-have: the store is the most sensitive component in the system.
+    #
+    # Both entries are classified by what a trace *may* contain, not by what
+    # TrustLayer intends to collect. A store that declares only what it meant
+    # to hold is the reason trace logs turn into data-protection incidents.
+    #
+    # Known limitation, found by running this scan: `system.schema.json` has
+    # no category for agent trace data specifically, so this is the nearest
+    # honest mapping rather than an exact one. Tracked for the schema revision
+    # in Slice 8.2 (ADR-018), which adds role and data filtering.
+    - personal_data
+    - proprietary_data
+  approved_use_cases:
+    - "Record agent trace events as tamper-evident Art. 12 evidence"
+    - "Adjudicate tool calls against a declared policy at runtime"
+    - "Link runtime evidence to control frameworks and report readiness"
+    - "Generate remediation guidance for identified compliance gaps"
+  restricted_use_cases:
+    - "Must not be presented as conferring conformity or a presumption of conformity"
+    - "Must not present generated output as legal advice or certification"
+    - "Must not write to a user's repository, vault, or registry without human review"
+    - "Must not transmit trace content to a third party outside an explicit egress policy"
+  human_oversight:
+    type: human-in-the-loop
+    approval_points:
+      - "Every generated artifact is a proposal; a human accepts it (P4)"
+      - "Substantial-modification determinations are made by a person, not the tool"
+      - "Serious-incident classification is a required human field"
+      - "Model-assisted findings are advisory until a human approves them"
+    fallback_mechanism: >-
+      Instrumentation fails open so it can never take down a host agent (P9).
+      The evidence store is the deliberate exception: it may refuse a write to
+      protect integrity (P3).
+  integration:
+    agent_id: "trustlayer-hermes"
+    session_id_pattern: "hermes-*"
+    guardian_policy: "default"
+    trace_store_url: "http://127.0.0.1:8089"
+  controls:
+    frameworks:
+      - eu-ai-act
+  article_50:
+    # TrustLayer has no end-user-facing conversational surface and generates
+    # no synthetic media, so Art. 50 does not bite. Recorded explicitly rather
+    # than left unanswered: "does not apply, and here is why" is a compliance
+    # answer, while silence is not.
+    enabled: false
+    disclosure_config:
+      disclose_ai_interaction: false
+      disclose_emotion_recognition: false
+      disclose_biometric_classification: false
+    marking_config:
+      mark_generated_content: false
+      deepfake_disclosure: false
+      public_interest_disclosure: false
+  metadata:
+    created_at: "2026-08-06T00:00:00+00:00"
+    updated_at: "2026-08-06T00:00:00+00:00"
+    version: "1.0"
+    tags:
+      - infrastructure
+      - open-source
+      - dogfood

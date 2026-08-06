@@ -79,6 +79,19 @@ The guardian refuses a group- or world-readable key file, and logs the
 — a key handed over in the same response as the signatures it verifies
 proves nothing.
 
+`TRUSTLAYER_SIGNING_KEY` also accepts the hex seed inline, which is
+convenient and worse: an environment variable is readable from
+`/proc/<pid>/environ`, appears in container inspection output, and is
+routinely captured by process supervisors and crash reporters. **Prefer the
+file path** in anything but a scratch environment.
+
+Anyone who can write to `events.checkpoints.jsonl` can append a checkpoint
+signed with a key of their own choosing, and the server will report it as
+having a valid signature — because the key travels with the signature. That
+is why `verified_signatures` is documented as internal consistency, not
+authenticity, and why an auditor must hold the public key independently.
+Protect the checkpoint file with the same file permissions as the log.
+
 Unsigned checkpoints are still emitted when no key is set. An unsigned
 checkpoint archived off-box (WORM bucket, a commit in another repository,
 mailed to an auditor) still pins the prefix; it just moves the trust
