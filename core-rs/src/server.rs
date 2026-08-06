@@ -19,6 +19,7 @@ use tower_http::cors::{Any, CorsLayer};
 use crate::auth::require_token;
 use crate::events::{EventFilter, TraceStore};
 use crate::guardian::{CynepicGuardian, Verdict};
+use crate::integrity::Seq;
 use crate::metrics::{track_requests, ServerMetrics};
 use crate::rate_limit::{rate_limit, IngestRateLimit};
 use crate::reflections;
@@ -65,11 +66,53 @@ struct ListEventsQuery {
     session_id: Option<String>,
     event_type: Option<EventType>,
     limit: Option<usize>,
+    after_seq: Option<u64>,
+}
+
+/// Query for `GET /v1/events/chained` (ADR-017 §6).
+#[derive(Deserialize)]
+struct ChainPageQuery {
+    agent_id: String,
+    after_seq: Option<u64>,
+    limit: Option<usize>,
+}
+
+/// Query for the `/v1/integrity/*` routes.
+#[derive(Deserialize, Default)]
+struct IntegrityQuery {
+    agent_id: Option<String>,
 }
 
 #[derive(Serialize)]
 struct IngestResponse {
     stored: usize,
+}
+
+/// Response for `GET /v1/integrity/verify`.
+#[derive(Serialize)]
+struct VerifyResponse {
+    /// True only when every chain in `chains` verified.
+    ok: bool,
+    chains: Vec<crate::integrity::ChainVerification>,
+}
+
+/// Response for `GET /v1/integrity/checkpoints`.
+#[derive(Serialize)]
+struct CheckpointsResponse {
+    checkpoints: Vec<crate::checkpoint::Checkpoint>,
+    /// Number of checkpoints carrying a signature this server could verify
+    /// against the key they embed.
+    ///
+    /// Reported separately from the count so a client can see at a glance that
+    /// a stored checkpoint has stopped verifying. **This does not establish
+    /// authenticity**: the key travels in the same response as the signature,
+    /// so an auditor must compare it against a key received out of band. Said
+    /// plainly here because a UI that renders this as a green tick would be
+    /// making a claim the data cannot support.
+    verified_signatures: usize,
+    /// Checkpoints that claim a signature which does not hold. Any non-zero
+    /// value is a finding, not a warning.
+    invalid_signatures: usize,
 }
 
 /// Build the Axum router used by both the binary and the integration tests.
@@ -94,6 +137,12 @@ pub fn build_router(state: AppState) -> Router {
             Router::new()
                 .route("/v1/check", post(check_handler))
                 .route("/v1/events", get(list_events_handler))
+                .route("/v1/events/chained", get(chain_page_handler))
+                .route("/v1/integrity/verify", get(integrity_verify_handler))
+                .route(
+                    "/v1/integrity/checkpoints",
+                    get(integrity_checkpoints_handler),
+                )
                 .route("/v1/sessions", get(list_sessions_handler))
                 .route(
                     "/v1/sessions/:agent_id/:session_id",
@@ -151,6 +200,12 @@ async fn ingest_handler(
 }
 
 async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
+    // Pull the store's own counters at scrape time; the store is the authority
+    // on its retention state, and mirroring it into a second counter would
+    // drift the moment either side restarts.
+    if let Some(stats) = state.events.evidence_stats().await {
+        state.metrics.observe_evidence(stats);
+    }
     let body = state.metrics.render();
     (
         StatusCode::OK,
@@ -163,16 +218,112 @@ async fn list_events_handler(
     State(state): State<AppState>,
     Query(q): Query<ListEventsQuery>,
 ) -> impl IntoResponse {
+    // Chain sequence numbers are scoped per agent (ADR-017 §2), so a cursor
+    // without an agent names no position. Rejecting beats silently returning
+    // a differently-scoped page: a paging evidence consumer would skip events
+    // and never know it.
+    if q.after_seq.is_some() && q.agent_id.is_none() {
+        return bad_request("after_seq requires agent_id: chain positions are scoped per agent");
+    }
+
     let filter = EventFilter {
         agent_id: q.agent_id,
         session_id: q.session_id,
         event_type: q.event_type,
         limit: q.limit,
+        after_seq: q.after_seq.map(Seq::new),
     };
     match state.events.list_events(&filter).await {
         Ok(events) => (StatusCode::OK, Json(events)).into_response(),
         Err(err) => store_error(err),
     }
+}
+
+/// `GET /v1/events/chained` — events with the chain metadata committing to
+/// them, paged by chain position.
+///
+/// A separate route rather than a new shape on `GET /v1/events`: making one
+/// route return two different response bodies depending on a query parameter
+/// would break every client that has to handle both.
+async fn chain_page_handler(
+    State(state): State<AppState>,
+    Query(q): Query<ChainPageQuery>,
+) -> impl IntoResponse {
+    match state
+        .events
+        .chain_page(&q.agent_id, q.after_seq.map(Seq::new), q.limit)
+        .await
+    {
+        Ok(page) => (StatusCode::OK, Json(page)).into_response(),
+        Err(err) => integrity_error(err),
+    }
+}
+
+/// `GET /v1/integrity/verify` — recompute chains and report divergences.
+async fn integrity_verify_handler(
+    State(state): State<AppState>,
+    Query(q): Query<IntegrityQuery>,
+) -> impl IntoResponse {
+    match state.events.verify_chains(q.agent_id.as_deref()).await {
+        Ok(chains) => {
+            let ok = chains.iter().all(|c| c.ok());
+            (StatusCode::OK, Json(VerifyResponse { ok, chains })).into_response()
+        }
+        Err(err) => integrity_error(err),
+    }
+}
+
+/// `GET /v1/integrity/checkpoints` — the signed commitments to chain heads.
+async fn integrity_checkpoints_handler(
+    State(state): State<AppState>,
+    Query(q): Query<IntegrityQuery>,
+) -> impl IntoResponse {
+    match state.events.checkpoints(q.agent_id.as_deref()).await {
+        Ok(checkpoints) => {
+            let mut verified_signatures = 0usize;
+            let mut invalid_signatures = 0usize;
+            for checkpoint in &checkpoints {
+                match crate::checkpoint::verify_checkpoint(checkpoint) {
+                    Ok(true) => verified_signatures += 1,
+                    // Unsigned: a fact about the checkpoint, not a failure.
+                    Ok(false) => {}
+                    Err(_) => invalid_signatures += 1,
+                }
+            }
+            (
+                StatusCode::OK,
+                Json(CheckpointsResponse {
+                    checkpoints,
+                    verified_signatures,
+                    invalid_signatures,
+                }),
+            )
+                .into_response()
+        }
+        Err(err) => integrity_error(err),
+    }
+}
+
+fn bad_request(message: &str) -> axum::response::Response {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({"error": message})),
+    )
+        .into_response()
+}
+
+/// Map an integrity failure to a response.
+///
+/// A backend that keeps no chain is a **501**, not a 500: the request was
+/// well-formed and the server is working correctly, it just cannot make the
+/// attestation asked of it. Returning 500 would read as a transient fault an
+/// evidence consumer should retry, when in fact it must reconfigure.
+fn integrity_error(err: crate::error::Error) -> axum::response::Response {
+    let status = match err {
+        crate::error::Error::Integrity(_) => StatusCode::NOT_IMPLEMENTED,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    (status, Json(serde_json::json!({"error": err.to_string()}))).into_response()
 }
 
 async fn list_sessions_handler(State(state): State<AppState>) -> impl IntoResponse {

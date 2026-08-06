@@ -60,6 +60,14 @@ pyo3 = { version = "0.29", optional = true, default-features = false, features =
 # Postgres trace-store backend (ADR-015). Runtime query API only (no compile-
 # time DATABASE_URL needed). rustls so no system OpenSSL dependency.
 sqlx = { version = "0.8", optional = true, default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }
+# Ed25519 signatures over chain checkpoints (ADR-017 §5). Non-optional
+# because checkpointing is a property of the *store*, not of the HTTP surface:
+# cfg-gating it behind `server` would give the same store two checkpoint
+# formats depending on build flags, and a checkpoint whose shape depends on how
+# the binary was compiled is not an audit artifact. `zeroize` wipes the seed
+# from memory on drop; no `rand_core`, because this crate deliberately cannot
+# generate keys (see `CheckpointSigner`).
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast", "zeroize"] }
 
 [dev-dependencies]
 serde_json = "1"

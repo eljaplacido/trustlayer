@@ -8,6 +8,72 @@ and versions adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
+### Added (Phase 8 — EU AI Act compliance depth)
+
+**Slice 8.0 — event-type lockstep (gap G0).** `compliance/schemas/control.schema.json`
+enumerated seven event types while `core-rs` `EventType` had nine, so loading
+`article-50-v1.yaml` raised `ValidationError` — the Art. 50 control catalog was
+dead code. Fixed across the schema, `spec/v0.1/01-wire-format.md` §1.3 and
+§2 ("seven" → "nine"), and `docs/SCHEMA.md`, with payload contracts added for
+`DISCLOSURE_SHOWN` and `CONTENT_MARKED`.
+- Regression tests: `test_event_type_lockstep.py` parses the Rust enum as the
+  source of truth and asserts the spec prose and compliance schema agree;
+  `test_control_catalogs.py` loads **every** catalog in `compliance/controls/`.
+- `spec/v0.1/fixtures/` is now read by all five implementations (Rust core plus
+  the Python, TypeScript and Go SDKs), each asserting strict-envelope parse,
+  field preservation, fixed-point round-trip, and rejection of an unknown
+  field. A fixture read only by the language that produced it proves nothing
+  about interoperability — that omission is what produced G0.
+
+**Slice 8.1 — Art. 12 evidence integrity (ADR-017).**
+- **Tamper-evident hash chain**, scoped per `agent_id`, over a canonical
+  event serialisation. `Seq` and `EventHash` newtypes make it a type error to
+  put a chain hash where a content hash belongs. `recorded_at` is the store's
+  clock, never the client's `timestamp`.
+- **Signed checkpoints.** Ed25519 commitments to a chain head, written to
+  `events.checkpoints.jsonl` every `TRUSTLAYER_INTEGRITY_CHECKPOINT_EVERY`
+  appends or `…_INTERVAL_SECS` seconds, plus one on graceful shutdown.
+  `TRUSTLAYER_SIGNING_KEY` takes a hex seed or a `chmod 600` file. Key
+  *generation* is deliberately not implemented — see `docs/SCALING.md`.
+  Unsigned checkpoints are still emitted; archived off-box they still pin the
+  prefix.
+- **New routes** (additive, MINOR per spec §1.7; normative in
+  `spec/v0.1/05-http-api.md` §5.12): `GET /v1/events/chained`,
+  `GET /v1/integrity/verify`, `GET /v1/integrity/checkpoints`, and an
+  `after_seq` cursor on `GET /v1/events`. A backend with no chain answers
+  `501`, not `500` — it is healthy, it just cannot attest.
+- **New metrics**: `trustlayer_retention_live_events`,
+  `trustlayer_retention_archived_total`,
+  `trustlayer_retention_floor_blocked_total`,
+  `trustlayer_integrity_checkpoints_total`,
+  `trustlayer_integrity_chains_total`.
+
+### Changed (Phase 8)
+- **`TRUSTLAYER_EVENT_RETENTION_MAX` no longer deletes.** It was a hard cap
+  that evicted the oldest events on overflow, which could destroy logs Art. 12
+  requires be kept for six months. It is now a *soft target*: overflow is
+  appended to `events.archive.jsonl` and the live log compacted. Strictly
+  safer, and no configuration change is required.
+- **New retention floor.** `TRUSTLAYER_RETENTION_MIN_DAYS` (default `180`;
+  set `730` for biometric / law-enforcement systems) defines a minimum age
+  before an event may leave the live log. **It outranks the count target**: if
+  honouring the target would evict a younger event, the store keeps it, lets
+  the live log grow, and increments
+  `trustlayer_retention_floor_blocked_total`. Destroying evidence is a
+  conformity failure; an oversized log is an operations problem. `0` disables
+  the floor and logs a warning.
+- `GET /v1/events` accepts `after_seq`. Its response shape is **unchanged** —
+  chain metadata is served from `/v1/events/chained` so no route returns two
+  different bodies.
+
+### Deferred (Phase 8)
+- **Postgres integrity parity.** The `postgres` backend answers the integrity
+  routes with `501` rather than a chain it does not maintain. Shipping
+  untested SQL behind an Art. 12 tamper-evidence claim would be worse than
+  saying plainly that it is not implemented; CI has no database.
+- Merkle inclusion proofs (chain replay suffices at current volumes) and
+  runtime trust-envelope enforcement — both Phase 9.
+
 ### Added (Phase 6 — Production hardening, ADR-015)
 - **Pluggable trace store.** New object-safe `TraceStore` trait; the HTTP
   sidecar now holds `Arc<dyn TraceStore>` so the same routes serve any

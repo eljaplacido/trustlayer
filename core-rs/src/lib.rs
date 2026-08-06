@@ -8,6 +8,7 @@
 
 #[cfg(feature = "server")]
 pub mod auth;
+pub mod checkpoint;
 pub mod error;
 pub mod events;
 #[cfg(feature = "python")]
@@ -28,9 +29,13 @@ pub mod schema;
 #[cfg(feature = "server")]
 pub mod server;
 
+pub use checkpoint::{
+    verify_checkpoint, Checkpoint, CheckpointPolicy, CheckpointSigner, DEFAULT_CHECKPOINT_EVERY,
+    DEFAULT_CHECKPOINT_INTERVAL_SECS,
+};
 pub use error::{Error, Result};
 pub use events::{
-    EventFilter, EventStore, RetentionStats, SessionSummary, TraceStore,
+    ChainPage, ChainedEvent, EventFilter, EventStore, RetentionStats, SessionSummary, TraceStore,
     DEFAULT_RETENTION_FLOOR_DAYS,
 };
 pub use guardian::{CynepicGuardian, Verdict};

@@ -27,8 +27,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 
+use crate::checkpoint::{unsigned_checkpoint, Checkpoint, CheckpointPolicy, CheckpointSigner};
 use crate::error::{Error, Result};
-use crate::integrity::{verify_chain, ChainEntry, ChainVerification};
+use crate::integrity::{verify_chain, ChainEntry, ChainVerification, EventHash, Seq};
 use crate::schema::{AgentTraceEvent, EventType};
 
 type SessionKey = (String, String);
@@ -57,6 +58,65 @@ pub trait TraceStore: Send + Sync {
 
     /// All events for one session, in insertion order.
     async fn get_session(&self, agent_id: &str, session_id: &str) -> Result<Vec<AgentTraceEvent>>;
+
+    /// One page of an agent's chain, for cursor-based streaming (ADR-017 §6).
+    ///
+    /// Backends that do not maintain a chain return [`Error::Integrity`]
+    /// rather than an empty page: an evidence consumer must be able to tell
+    /// "this agent has no events" from "this backend cannot attest to
+    /// anything". Conflating the two would let an unchained store look like a
+    /// clean one.
+    async fn chain_page(
+        &self,
+        _agent_id: &str,
+        _after_seq: Option<Seq>,
+        _limit: Option<usize>,
+    ) -> Result<ChainPage> {
+        Err(Error::Integrity(
+            "this trace-store backend does not maintain an integrity chain".into(),
+        ))
+    }
+
+    /// Recompute chains and report the first divergence in each.
+    ///
+    /// `agent_id` limits the check to one agent — an auditor for system X must
+    /// be able to verify X without being handed system Y's evidence (P7).
+    async fn verify_chains(&self, _agent_id: Option<&str>) -> Result<Vec<ChainVerification>> {
+        Err(Error::Integrity(
+            "this trace-store backend does not maintain an integrity chain".into(),
+        ))
+    }
+
+    /// Checkpoints committed for an agent (or all agents when `None`).
+    async fn checkpoints(&self, _agent_id: Option<&str>) -> Result<Vec<Checkpoint>> {
+        Err(Error::Integrity(
+            "this trace-store backend does not maintain an integrity chain".into(),
+        ))
+    }
+
+    /// Counters for `GET /metrics`. `None` when the backend tracks none.
+    ///
+    /// Infallible by design: a metrics scrape must never fail because the
+    /// store is busy, or an operator loses the very signals that would tell
+    /// them why (P3 — failures are loud, but not at the cost of the alarm).
+    async fn evidence_stats(&self) -> Option<EvidenceStats> {
+        None
+    }
+}
+
+/// Store-level counters exported to Prometheus.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct EvidenceStats {
+    pub live_events: usize,
+    pub archived_total: u64,
+    /// Evictions refused by the retention floor. **A rising value is not data
+    /// loss** — it is the store correctly refusing to destroy evidence, and
+    /// the signal to add disk or shorten the floor.
+    pub floor_blocked_total: u64,
+    pub checkpoints_total: usize,
+    /// Distinct agents with a chain — i.e. how many AI systems this store
+    /// currently holds attestable evidence for.
+    pub chains_total: usize,
 }
 
 /// Filters accepted by [`EventStore::list_events`].
@@ -66,6 +126,45 @@ pub struct EventFilter {
     pub session_id: Option<String>,
     pub event_type: Option<EventType>,
     pub limit: Option<usize>,
+    /// Return only events after this chain position.
+    ///
+    /// Chain sequence numbers are scoped per `agent_id` (ADR-017 §2), so this
+    /// is only meaningful together with `agent_id`; the HTTP layer rejects the
+    /// combination outright rather than guessing. Events with no chain entry
+    /// (written while integrity was disabled) are excluded when this is set —
+    /// a cursor cannot honestly page over positions that do not exist.
+    pub after_seq: Option<Seq>,
+}
+
+/// One event with the chain metadata that commits to it.
+///
+/// Chain fields sit **alongside** the event, never inside it: the v0.1
+/// envelope is a shipped contract across four SDKs (spec §1.2) and a store
+/// cannot add fields to it.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChainedEvent {
+    pub seq: Seq,
+    pub hash: EventHash,
+    /// When the store observed the event — not the client's `timestamp`.
+    pub recorded_at: String,
+    pub event: AgentTraceEvent,
+}
+
+/// A cursor-paged slice of one agent's chain.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChainPage {
+    pub agent_id: String,
+    pub events: Vec<ChainedEvent>,
+    /// Cursor to pass as `after_seq` for the next page. `None` at the end of
+    /// the chain.
+    pub next_after_seq: Option<Seq>,
+    /// Highest sequence number this agent's chain currently holds, so a caller
+    /// can see how far behind its cursor is without walking to the end.
+    pub head_seq: Option<Seq>,
+    /// Chain entries whose event is no longer in the live log because
+    /// retention archived it. Reported rather than silently skipped: a page
+    /// with a hole is a fact the consumer needs (see `docs/SCALING.md`).
+    pub archived_in_range: usize,
 }
 
 /// Summary of one session — what `GET /v1/sessions` returns.
@@ -91,6 +190,17 @@ struct Inner {
     chains: HashMap<String, Vec<ChainEntry>>,
     chain_file: Option<File>,
     archive_file: Option<File>,
+    /// `trace_id -> chain position`, so `after_seq` filtering and chain paging
+    /// do not have to scan an agent's whole chain per event.
+    seq_by_trace: HashMap<uuid::Uuid, Seq>,
+    /// Checkpoints committed so far, in write order (ADR-017 §5).
+    checkpoints: Vec<Checkpoint>,
+    checkpoint_file: Option<File>,
+    /// Appends since each agent's last checkpoint, and when that checkpoint
+    /// was written. Both are needed because the count and time triggers are
+    /// independent.
+    since_checkpoint: HashMap<String, u64>,
+    last_checkpoint_at: HashMap<String, DateTime<Utc>>,
     /// When the store observed each event, parallel to `events` and drained
     /// with it. Store time, never the client's `timestamp` — see
     /// [`EventStore::index_existing`].
@@ -114,6 +224,11 @@ impl Inner {
             chains: HashMap::new(),
             chain_file: None,
             archive_file: None,
+            seq_by_trace: HashMap::new(),
+            checkpoints: Vec::new(),
+            checkpoint_file: None,
+            since_checkpoint: HashMap::new(),
+            last_checkpoint_at: HashMap::new(),
             recorded_at: Vec::new(),
             archived_total: 0,
             floor_blocked_total: 0,
@@ -150,6 +265,13 @@ pub struct EventStore {
     /// Minimum age before an event may be evicted from the live log. Outranks
     /// [`EventStore::retention`] — see [`EventStore::with_retention_floor`].
     retention_floor: Option<Duration>,
+    /// When to commit a chain checkpoint (ADR-017 §5). Disabled for in-memory
+    /// stores, since a checkpoint that dies with the process attests to
+    /// nothing.
+    checkpoint_policy: CheckpointPolicy,
+    /// Ed25519 signer for checkpoints. `None` emits unsigned checkpoints,
+    /// which still pin the prefix once archived off-box.
+    signer: Option<CheckpointSigner>,
 }
 
 /// Art. 12 default: high-risk system logs must be retained for at least six
@@ -170,6 +292,8 @@ impl EventStore {
             retention: None,
             integrity: false,
             retention_floor: Some(Duration::days(DEFAULT_RETENTION_FLOOR_DAYS)),
+            checkpoint_policy: CheckpointPolicy::DISABLED,
+            signer: None,
         }
     }
 
@@ -210,6 +334,191 @@ impl EventStore {
     pub fn with_retention_floor(mut self, floor: Option<Duration>) -> Self {
         self.retention_floor = floor;
         self
+    }
+
+    /// Set when chain checkpoints are committed (ADR-017 §5).
+    ///
+    /// Defaults to [`CheckpointPolicy::default`] for file-backed stores and to
+    /// [`CheckpointPolicy::DISABLED`] for in-memory ones — a checkpoint that
+    /// dies with the process attests to nothing.
+    pub fn with_checkpoint_policy(mut self, policy: CheckpointPolicy) -> Self {
+        self.checkpoint_policy = policy;
+        self
+    }
+
+    /// Attach an Ed25519 signer. `None` leaves checkpoints unsigned.
+    pub fn with_signer(mut self, signer: Option<CheckpointSigner>) -> Self {
+        self.signer = signer;
+        self
+    }
+
+    /// The public key checkpoints are signed with, if any. Hand this to
+    /// auditors **out of band** — a key delivered alongside the checkpoints it
+    /// signs proves nothing.
+    pub fn signing_public_key(&self) -> Option<String> {
+        self.signer.as_ref().map(|s| s.public_key_hex())
+    }
+
+    /// Checkpoints committed so far, oldest first.
+    pub fn checkpoints(&self, agent_id: Option<&str>) -> Vec<Checkpoint> {
+        let inner = self.inner.lock().expect("event store mutex poisoned");
+        inner
+            .checkpoints
+            .iter()
+            .filter(|c| agent_id.is_none_or(|a| c.agent_id == a))
+            .cloned()
+            .collect()
+    }
+
+    /// Commit a checkpoint for every agent with uncommitted appends,
+    /// regardless of policy triggers.
+    ///
+    /// Called on graceful shutdown so the final events of a run are covered:
+    /// an agent that stops 900 appends into a 1000-append interval would
+    /// otherwise leave its most recent — often most interesting — evidence
+    /// uncommitted.
+    pub fn force_checkpoints(&self) -> Result<Vec<Checkpoint>> {
+        let mut inner = self.inner.lock().expect("event store mutex poisoned");
+        let mut agents: Vec<String> = inner
+            .since_checkpoint
+            .iter()
+            .filter(|(_, pending)| **pending > 0)
+            .map(|(agent, _)| agent.clone())
+            .collect();
+        agents.sort();
+
+        let now = Utc::now();
+        let mut written = Vec::new();
+        for agent in agents {
+            if let Some(checkpoint) = self.commit_checkpoint(&mut inner, &agent, now)? {
+                written.push(checkpoint);
+            }
+        }
+        Ok(written)
+    }
+
+    /// Write a checkpoint over an agent's current chain head.
+    ///
+    /// Returns `None` when the agent has no chain yet — there is nothing to
+    /// commit to, and a checkpoint over an empty chain would be an assertion
+    /// about evidence that does not exist.
+    fn commit_checkpoint(
+        &self,
+        inner: &mut Inner,
+        agent_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<Checkpoint>> {
+        let Some(head) = inner.chains.get(agent_id).and_then(|c| c.last()) else {
+            return Ok(None);
+        };
+        let (seq, head_hash) = (head.seq, head.hash);
+        let created_at = now.to_rfc3339();
+
+        let checkpoint = match self.signer.as_ref() {
+            Some(signer) => signer.sign(agent_id, seq, head_hash, &created_at),
+            None => unsigned_checkpoint(agent_id, seq, head_hash, &created_at),
+        };
+
+        if let Some(file) = inner.checkpoint_file.as_mut() {
+            let line = serde_json::to_string(&checkpoint).map_err(Error::InvalidEvent)?;
+            writeln!(file, "{line}")?;
+            file.flush()?;
+        }
+        inner.checkpoints.push(checkpoint.clone());
+        inner.since_checkpoint.insert(agent_id.to_string(), 0);
+        inner.last_checkpoint_at.insert(agent_id.to_string(), now);
+        Ok(Some(checkpoint))
+    }
+
+    /// Commit a checkpoint for `agent_id` if the policy says it is due.
+    fn maybe_checkpoint(
+        &self,
+        inner: &mut Inner,
+        agent_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<()> {
+        if self.checkpoint_policy.is_disabled() {
+            return Ok(());
+        }
+        let pending = inner
+            .since_checkpoint
+            .get(agent_id)
+            .copied()
+            .unwrap_or_default();
+        // No prior checkpoint means the clock starts at this agent's first
+        // append, so a fresh agent is not instantly "overdue".
+        let elapsed = inner
+            .last_checkpoint_at
+            .get(agent_id)
+            .map(|last| (now - *last).num_seconds())
+            .unwrap_or(0);
+
+        if self.checkpoint_policy.should_checkpoint(pending, elapsed) {
+            self.commit_checkpoint(inner, agent_id, now)?;
+        } else if !inner.last_checkpoint_at.contains_key(agent_id) {
+            // Start the interval clock at the agent's first append.
+            inner.last_checkpoint_at.insert(agent_id.to_string(), now);
+        }
+        Ok(())
+    }
+
+    /// One page of an agent's chain, oldest first (ADR-017 §6).
+    ///
+    /// Pages by chain position rather than offset so a concurrent append or an
+    /// archive compaction cannot cause a consumer to skip or repeat an event —
+    /// an offset cursor over a mutating log silently loses evidence, which is
+    /// exactly the failure this whole module exists to prevent.
+    pub fn chain_page(
+        &self,
+        agent_id: &str,
+        after_seq: Option<Seq>,
+        limit: Option<usize>,
+    ) -> ChainPage {
+        let inner = self.inner.lock().expect("event store mutex poisoned");
+        let entries = inner.chains.get(agent_id).map(Vec::as_slice).unwrap_or(&[]);
+        let head_seq = entries.last().map(|e| e.seq);
+        let floor = after_seq.map(Seq::get).unwrap_or(0);
+
+        let mut events = Vec::new();
+        let mut archived_in_range = 0usize;
+        let mut next_after_seq = None;
+
+        for entry in entries.iter().filter(|e| e.seq.get() > floor) {
+            if limit.is_some_and(|n| events.len() >= n) {
+                break;
+            }
+            // Advance the cursor for archived entries too: a consumer that
+            // stalled on a hole would never reach the events after it.
+            next_after_seq = Some(entry.seq);
+            let Some(&idx) = inner.by_trace.get(&entry.trace_id) else {
+                archived_in_range += 1;
+                continue;
+            };
+            let Some(event) = inner.events.get(idx) else {
+                archived_in_range += 1;
+                continue;
+            };
+            events.push(ChainedEvent {
+                seq: entry.seq,
+                hash: entry.hash,
+                recorded_at: entry.recorded_at.clone(),
+                event: event.clone(),
+            });
+        }
+
+        // At the end of the chain there is no next page; reporting the head as
+        // a cursor would make an exhausted consumer look like a paging one.
+        if next_after_seq == head_seq {
+            next_after_seq = None;
+        }
+
+        ChainPage {
+            agent_id: agent_id.to_string(),
+            events,
+            next_after_seq,
+            head_seq,
+            archived_in_range,
+        }
     }
 
     /// Current retention counters.
@@ -274,6 +583,28 @@ impl EventStore {
         );
         Self::recover_chain_tails(&mut inner)?;
         Self::restore_recorded_at(&mut inner);
+        Self::index_chain_positions(&mut inner);
+
+        let checkpoint_path = Self::checkpoint_path_for(&path);
+        if checkpoint_path.exists() {
+            let reader = BufReader::new(File::open(&checkpoint_path)?);
+            for line in reader.lines() {
+                let line = line?;
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let checkpoint: Checkpoint = serde_json::from_str(&line)
+                    .map_err(|e| Error::Integrity(format!("malformed checkpoint: {e}")))?;
+                inner.checkpoints.push(checkpoint);
+            }
+        }
+        inner.checkpoint_file = Some(
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&checkpoint_path)?,
+        );
+        Self::restore_checkpoint_counters(&mut inner);
 
         inner.file = Some(OpenOptions::new().create(true).append(true).open(&path)?);
         Ok(Self {
@@ -282,6 +613,8 @@ impl EventStore {
             retention: None,
             integrity: true,
             retention_floor: Some(Duration::days(DEFAULT_RETENTION_FLOOR_DAYS)),
+            checkpoint_policy: CheckpointPolicy::default(),
+            signer: None,
         })
     }
 
@@ -293,6 +626,51 @@ impl EventStore {
 
     fn archive_path_for(path: &Path) -> PathBuf {
         path.with_extension("archive.jsonl")
+    }
+
+    fn checkpoint_path_for(path: &Path) -> PathBuf {
+        path.with_extension("checkpoints.jsonl")
+    }
+
+    /// Build the `trace_id -> seq` index from the loaded chains.
+    fn index_chain_positions(inner: &mut Inner) {
+        inner.seq_by_trace.clear();
+        for entries in inner.chains.values() {
+            for entry in entries {
+                inner.seq_by_trace.insert(entry.trace_id, entry.seq);
+            }
+        }
+    }
+
+    /// Restore per-agent checkpoint counters after a restart.
+    ///
+    /// Without this a process restart would reset "appends since last
+    /// checkpoint" to zero for every agent, so a store restarted more often
+    /// than its checkpoint interval would never commit one — the failure mode
+    /// would be silent and would only be noticed by an auditor asking for a
+    /// checkpoint that does not exist.
+    fn restore_checkpoint_counters(inner: &mut Inner) {
+        let mut committed: HashMap<String, Seq> = HashMap::new();
+        for checkpoint in &inner.checkpoints {
+            let entry = committed
+                .entry(checkpoint.agent_id.clone())
+                .or_insert(checkpoint.seq);
+            if checkpoint.seq > *entry {
+                *entry = checkpoint.seq;
+            }
+            if let Ok(created) = DateTime::parse_from_rfc3339(&checkpoint.created_at) {
+                inner
+                    .last_checkpoint_at
+                    .insert(checkpoint.agent_id.clone(), created.with_timezone(&Utc));
+            }
+        }
+        for (agent, entries) in &inner.chains {
+            let head = entries.last().map(|e| e.seq.get()).unwrap_or(0);
+            let done = committed.get(agent).map(|s| s.get()).unwrap_or(0);
+            inner
+                .since_checkpoint
+                .insert(agent.clone(), head.saturating_sub(done));
+        }
     }
 
     /// Rebuild chain entries for events whose entry never made it to disk.
@@ -419,7 +797,10 @@ impl EventStore {
     /// Archived events are read back from `events.archive.jsonl` so the check
     /// spans the archive boundary — an event moved out of the live log is
     /// still covered by the chain that commits to it.
-    pub fn verify_chains(&self) -> Result<Vec<ChainVerification>> {
+    ///
+    /// `agent_id` narrows the check to one agent so an auditor for system X
+    /// can verify X without being handed system Y's evidence (ADR-017 §2, P7).
+    pub fn verify_chains_for(&self, agent_id: Option<&str>) -> Result<Vec<ChainVerification>> {
         let mut events: HashMap<uuid::Uuid, AgentTraceEvent> = HashMap::new();
         if let Some(archive) = self.path.as_deref().map(Self::archive_path_for) {
             if archive.exists() {
@@ -441,7 +822,11 @@ impl EventStore {
             events.insert(event.trace_id, event.clone());
         }
 
-        let mut agents: Vec<&String> = inner.chains.keys().collect();
+        let mut agents: Vec<&String> = inner
+            .chains
+            .keys()
+            .filter(|a| agent_id.is_none_or(|want| a.as_str() == want))
+            .collect();
         agents.sort();
         Ok(agents
             .into_iter()
@@ -450,6 +835,12 @@ impl EventStore {
                 verify_chain(agent, entries, &events)
             })
             .collect())
+    }
+
+    /// Recompute every agent's chain. Shorthand for
+    /// [`EventStore::verify_chains_for`] with no filter.
+    pub fn verify_chains(&self) -> Result<Vec<ChainVerification>> {
+        self.verify_chains_for(None)
     }
 
     /// Append an event. Idempotent on `trace_id`. Returns `true` if this is
@@ -474,9 +865,16 @@ impl EventStore {
         // two can never disagree about when this event arrived.
         let observed = Utc::now();
         if self.integrity {
+            let agent_id = event.agent_id.clone();
             Self::append_chain_entry(&mut inner, &event, observed)?;
+            *inner.since_checkpoint.entry(agent_id.clone()).or_default() += 1;
+            Self::index_existing(&mut inner, event, observed);
+            // After indexing, so a checkpoint written here commits to a head
+            // whose event is already readable through `chain_page`.
+            self.maybe_checkpoint(&mut inner, &agent_id, observed)?;
+        } else {
+            Self::index_existing(&mut inner, event, observed);
         }
-        Self::index_existing(&mut inner, event, observed);
         self.enforce_retention(&mut inner)?;
         Ok(true)
     }
@@ -497,6 +895,7 @@ impl EventStore {
             writeln!(file, "{line}")?;
             file.flush()?;
         }
+        inner.seq_by_trace.insert(entry.trace_id, entry.seq);
         inner
             .chains
             .entry(event.agent_id.clone())
@@ -649,6 +1048,16 @@ impl EventStore {
                         .as_deref()
                         .is_none_or(|s| e.session_id == s)
                     && filter.event_type.is_none_or(|t| e.event_type == t)
+                    // An event with no chain entry is excluded when a cursor
+                    // is set: it has no position, so no cursor can honestly
+                    // include or exclude it, and guessing either way would
+                    // make paging non-deterministic.
+                    && filter.after_seq.is_none_or(|after| {
+                        inner
+                            .seq_by_trace
+                            .get(&e.trace_id)
+                            .is_some_and(|seq| *seq > after)
+                    })
             })
             .cloned()
             .collect();
@@ -740,6 +1149,49 @@ impl TraceStore for EventStore {
 
     async fn get_session(&self, agent_id: &str, session_id: &str) -> Result<Vec<AgentTraceEvent>> {
         Ok(EventStore::get_session(self, agent_id, session_id))
+    }
+
+    async fn chain_page(
+        &self,
+        agent_id: &str,
+        after_seq: Option<Seq>,
+        limit: Option<usize>,
+    ) -> Result<ChainPage> {
+        if !self.integrity {
+            return Err(Error::Integrity(
+                "integrity chaining is disabled on this store".into(),
+            ));
+        }
+        Ok(EventStore::chain_page(self, agent_id, after_seq, limit))
+    }
+
+    async fn verify_chains(&self, agent_id: Option<&str>) -> Result<Vec<ChainVerification>> {
+        if !self.integrity {
+            return Err(Error::Integrity(
+                "integrity chaining is disabled on this store".into(),
+            ));
+        }
+        EventStore::verify_chains_for(self, agent_id)
+    }
+
+    async fn checkpoints(&self, agent_id: Option<&str>) -> Result<Vec<Checkpoint>> {
+        if !self.integrity {
+            return Err(Error::Integrity(
+                "integrity chaining is disabled on this store".into(),
+            ));
+        }
+        Ok(EventStore::checkpoints(self, agent_id))
+    }
+
+    async fn evidence_stats(&self) -> Option<EvidenceStats> {
+        let inner = self.inner.lock().expect("event store mutex poisoned");
+        Some(EvidenceStats {
+            live_events: inner.events.len(),
+            archived_total: inner.archived_total,
+            floor_blocked_total: inner.floor_blocked_total,
+            checkpoints_total: inner.checkpoints.len(),
+            chains_total: inner.chains.len(),
+        })
     }
 }
 
@@ -1343,5 +1795,375 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert!(results[0].ok(), "{:?}", results[0]);
+    }
+
+    #[test]
+    fn verification_can_be_scoped_to_one_agent() {
+        // An auditor for system X must be able to verify X without being
+        // handed system Y's evidence (ADR-017 §2, principle P7).
+        let store = EventStore::in_memory().with_integrity(true);
+        store.append(sample_event(&trace(1), "a", "s")).unwrap();
+        store.append(sample_event(&trace(2), "b", "s")).unwrap();
+
+        let scoped = store.verify_chains_for(Some("a")).expect("verify");
+
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].agent_id, "a");
+        assert_eq!(store.verify_chains_for(None).expect("verify").len(), 2);
+    }
+
+    #[test]
+    fn verifying_an_unknown_agent_returns_nothing_rather_than_a_pass() {
+        let store = EventStore::in_memory().with_integrity(true);
+        store.append(sample_event(&trace(1), "a", "s")).unwrap();
+
+        // An empty list, not a vacuously-ok verification: reporting "ok" for
+        // an agent the store has never heard of would let a typo in an
+        // agent_id read as a clean bill of health.
+        assert!(store
+            .verify_chains_for(Some("nonexistent"))
+            .expect("verify")
+            .is_empty());
+    }
+
+    // --- Chain paging (ADR-017 §6) ---------------------------------------
+
+    #[test]
+    fn chain_page_returns_events_with_their_positions() {
+        let store = EventStore::in_memory().with_integrity(true);
+        for i in 1..=3 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+
+        let page = store.chain_page("a", None, None);
+
+        assert_eq!(page.agent_id, "a");
+        assert_eq!(page.events.len(), 3);
+        assert_eq!(page.events[0].seq, Seq::FIRST);
+        assert_eq!(page.events[2].seq, Seq::new(3));
+        assert_eq!(page.head_seq, Some(Seq::new(3)));
+        assert_eq!(page.next_after_seq, None, "a full read has no next page");
+    }
+
+    #[test]
+    fn chain_page_walks_the_whole_chain_without_gaps_or_repeats() {
+        let store = EventStore::in_memory().with_integrity(true);
+        for i in 1..=10 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+
+        let mut seen: Vec<u64> = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = store.chain_page("a", cursor, Some(3));
+            seen.extend(page.events.iter().map(|e| e.seq.get()));
+            match page.next_after_seq {
+                Some(next) => cursor = Some(next),
+                None => break,
+            }
+        }
+
+        assert_eq!(seen, (1..=10).collect::<Vec<u64>>());
+    }
+
+    #[test]
+    fn chain_page_is_scoped_to_its_agent() {
+        let store = EventStore::in_memory().with_integrity(true);
+        store.append(sample_event(&trace(1), "a", "s")).unwrap();
+        store.append(sample_event(&trace(2), "b", "s")).unwrap();
+        store.append(sample_event(&trace(3), "a", "s")).unwrap();
+
+        let page = store.chain_page("a", None, None);
+
+        assert_eq!(page.events.len(), 2);
+        assert!(page.events.iter().all(|e| e.event.agent_id == "a"));
+        // Per-agent chains number independently, so agent b also starts at 1.
+        assert_eq!(store.chain_page("b", None, None).events[0].seq, Seq::FIRST);
+    }
+
+    #[test]
+    fn chain_page_for_an_unknown_agent_is_empty_not_an_error() {
+        let store = EventStore::in_memory().with_integrity(true);
+        let page = store.chain_page("nobody", None, None);
+
+        assert!(page.events.is_empty());
+        assert_eq!(page.head_seq, None);
+        assert_eq!(page.next_after_seq, None);
+    }
+
+    #[test]
+    fn chain_page_reports_archived_events_rather_than_hiding_them() {
+        let tmp = tempdir();
+        let path = tmp.join("events.jsonl");
+        let store = EventStore::open_jsonl(&path)
+            .unwrap()
+            .with_retention(Some(2))
+            .with_retention_floor(None);
+        for i in 1..=10 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+        assert!(
+            store.retention_stats().archived_total > 0,
+            "nothing archived"
+        );
+
+        let page = store.chain_page("a", None, None);
+
+        // The hole is reported, not silently skipped: a consumer that thought
+        // it had every event would draw the wrong conclusion from the gap.
+        assert!(page.archived_in_range > 0);
+        assert_eq!(page.head_seq, Some(Seq::new(10)));
+        // ...and the chain still verifies across the boundary.
+        assert!(store.verify_chains().expect("verify")[0].ok());
+    }
+
+    #[test]
+    fn after_seq_filters_list_events() {
+        let store = EventStore::in_memory().with_integrity(true);
+        for i in 1..=5 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+
+        let out = store.list_events(&EventFilter {
+            agent_id: Some("a".into()),
+            after_seq: Some(Seq::new(3)),
+            ..EventFilter::default()
+        });
+
+        assert_eq!(out.len(), 2);
+    }
+
+    #[test]
+    fn after_seq_excludes_events_that_have_no_chain_position() {
+        // Integrity off => no positions at all. A cursor cannot honestly
+        // include events it cannot place, so it returns none rather than
+        // silently returning everything.
+        let store = EventStore::in_memory();
+        for i in 1..=3 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+
+        let out = store.list_events(&EventFilter {
+            agent_id: Some("a".into()),
+            after_seq: Some(Seq::new(0)),
+            ..EventFilter::default()
+        });
+
+        assert!(out.is_empty());
+        // Without a cursor the same store still lists everything.
+        assert_eq!(store.list_events(&EventFilter::default()).len(), 3);
+    }
+
+    // --- Checkpoints (ADR-017 §5) ----------------------------------------
+
+    #[test]
+    fn checkpoints_are_committed_on_the_count_trigger() {
+        let tmp = tempdir();
+        let path = tmp.join("events.jsonl");
+        let store = EventStore::open_jsonl(&path)
+            .unwrap()
+            .with_checkpoint_policy(CheckpointPolicy {
+                every_events: Some(3),
+                interval_secs: None,
+            });
+        for i in 1..=7 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+
+        let checkpoints = store.checkpoints(Some("a"));
+
+        assert_eq!(checkpoints.len(), 2, "{checkpoints:?}");
+        assert_eq!(checkpoints[0].seq, Seq::new(3));
+        assert_eq!(checkpoints[1].seq, Seq::new(6));
+        assert!(path.with_extension("checkpoints.jsonl").exists());
+    }
+
+    #[test]
+    fn a_checkpoint_commits_to_the_chain_head_at_that_position() {
+        let store = EventStore::in_memory()
+            .with_integrity(true)
+            .with_checkpoint_policy(CheckpointPolicy {
+                every_events: Some(2),
+                interval_secs: None,
+            });
+        for i in 1..=2 {
+            store.append(sample_event(&trace(i), "a", "s")).unwrap();
+        }
+
+        let checkpoint = store.checkpoints(None).pop().expect("one checkpoint");
+        let page = store.chain_page("a", None, None);
+        let head = page.events.last().expect("head event");
+
+        assert_eq!(checkpoint.seq, head.seq);
+        assert_eq!(checkpoint.head_hash, head.hash);
+    }
+
+    #[test]
+    fn checkpoints_are_per_agent() {
+        let store = EventStore::in_memory()
+            .with_integrity(true)
+            .with_checkpoint_policy(CheckpointPolicy {
+                every_events: Some(2),
+                interval_secs: None,
+            });
+        store.append(sample_event(&trace(1), "a", "s")).unwrap();
+        store.append(sample_event(&trace(2), "b", "s")).unwrap();
+        store.append(sample_event(&trace(3), "a", "s")).unwrap();
+
+        // Agent a hit two appends; b has only one, so only a checkpoints.
+        assert_eq!(store.checkpoints(Some("a")).len(), 1);
+        assert!(store.checkpoints(Some("b")).is_empty());
+    }
+
+    #[test]
+    fn force_checkpoints_commits_pending_agents_only() {
+        let store = EventStore::in_memory()
+            .with_integrity(true)
+            .with_checkpoint_policy(CheckpointPolicy {
+                every_events: Some(1000),
+                interval_secs: None,
+            });
+        store.append(sample_event(&trace(1), "a", "s")).unwrap();
+
+        let written = store.force_checkpoints().expect("force");
+        assert_eq!(written.len(), 1);
+
+        // Nothing new appended, so a second force is a no-op — re-committing
+        // an unchanged head would be noise, not evidence.
+        assert!(store.force_checkpoints().expect("force").is_empty());
+    }
+
+    #[test]
+    fn force_checkpoints_on_an_empty_store_writes_nothing() {
+        let store = EventStore::in_memory().with_integrity(true);
+        assert!(store.force_checkpoints().expect("force").is_empty());
+    }
+
+    #[test]
+    fn checkpoints_survive_reopen_and_the_counter_does_not_reset() {
+        // Without counter restoration, a store restarted more often than its
+        // checkpoint interval would never commit one, silently.
+        let tmp = tempdir();
+        let path = tmp.join("events.jsonl");
+        {
+            let store = EventStore::open_jsonl(&path)
+                .unwrap()
+                .with_checkpoint_policy(CheckpointPolicy {
+                    every_events: Some(4),
+                    interval_secs: None,
+                });
+            for i in 1..=3 {
+                store.append(sample_event(&trace(i), "a", "s")).unwrap();
+            }
+            assert!(store.checkpoints(None).is_empty(), "not due yet");
+        }
+
+        let reopened = EventStore::open_jsonl(&path)
+            .unwrap()
+            .with_checkpoint_policy(CheckpointPolicy {
+                every_events: Some(4),
+                interval_secs: None,
+            });
+        reopened.append(sample_event(&trace(4), "a", "s")).unwrap();
+
+        assert_eq!(
+            reopened.checkpoints(None).len(),
+            1,
+            "the pre-restart appends must still count toward the trigger"
+        );
+    }
+
+    #[test]
+    fn stored_checkpoints_are_readable_after_reopen() {
+        let tmp = tempdir();
+        let path = tmp.join("events.jsonl");
+        let seed = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
+        {
+            let store = EventStore::open_jsonl(&path)
+                .unwrap()
+                .with_signer(Some(CheckpointSigner::from_hex(seed).expect("seed")))
+                .with_checkpoint_policy(CheckpointPolicy {
+                    every_events: Some(1),
+                    interval_secs: None,
+                });
+            store.append(sample_event(&trace(1), "a", "s")).unwrap();
+        }
+
+        let reopened = EventStore::open_jsonl(&path).unwrap();
+        let checkpoints = reopened.checkpoints(None);
+
+        assert_eq!(checkpoints.len(), 1);
+        assert!(checkpoints[0].is_signed());
+        assert!(
+            crate::checkpoint::verify_checkpoint(&checkpoints[0]).expect("verifies"),
+            "a signed checkpoint must still verify after a round trip through disk"
+        );
+    }
+
+    #[test]
+    fn unsigned_checkpoints_are_still_emitted_without_a_key() {
+        // An unsigned checkpoint archived off-box still pins the prefix;
+        // emitting nothing would be strictly worse.
+        let store = EventStore::in_memory()
+            .with_integrity(true)
+            .with_checkpoint_policy(CheckpointPolicy {
+                every_events: Some(1),
+                interval_secs: None,
+            });
+        store.append(sample_event(&trace(1), "a", "s")).unwrap();
+
+        let checkpoint = store.checkpoints(None).pop().expect("checkpoint");
+        assert!(!checkpoint.is_signed());
+        assert_eq!(store.signing_public_key(), None);
+    }
+
+    #[test]
+    fn a_checkpoint_stops_verifying_once_the_log_is_rewritten() {
+        // The point of the whole mechanism: rebuilding the chain over edited
+        // events produces a different head, so the old commitment no longer
+        // matches. Without this test the checkpoint is decoration.
+        let tmp = tempdir();
+        let path = tmp.join("events.jsonl");
+        {
+            let store = EventStore::open_jsonl(&path)
+                .unwrap()
+                .with_checkpoint_policy(CheckpointPolicy {
+                    every_events: Some(2),
+                    interval_secs: None,
+                });
+            store.append(sample_event(&trace(1), "a", "s")).unwrap();
+            store.append(sample_event(&trace(2), "a", "s")).unwrap();
+        }
+        let committed = EventStore::open_jsonl(&path)
+            .unwrap()
+            .checkpoints(None)
+            .pop()
+            .expect("checkpoint");
+
+        // Rewrite history: same event count, different content, and delete the
+        // chain so it is rebuilt cleanly over the forged log.
+        let forged = format!(
+            "{}\n{}\n",
+            serde_json::to_string(&sample_event(&trace(1), "a", "s")).unwrap(),
+            serde_json::to_string(&sample_event(&trace(9), "a", "s")).unwrap(),
+        );
+        std::fs::write(&path, forged).expect("rewrite log");
+        std::fs::remove_file(EventStore::chain_path_for(&path)).expect("drop chain");
+
+        let rebuilt = EventStore::open_jsonl(&path).expect("reopen");
+        // The rebuilt chain is internally consistent — that is exactly why a
+        // chain alone is insufficient and the checkpoint is needed.
+        assert!(rebuilt.verify_chains().expect("verify")[0].ok());
+
+        let new_head = rebuilt
+            .chain_page("a", None, None)
+            .events
+            .last()
+            .expect("head")
+            .hash;
+        assert_ne!(
+            committed.head_hash, new_head,
+            "the checkpoint must no longer match the rewritten log"
+        );
     }
 }

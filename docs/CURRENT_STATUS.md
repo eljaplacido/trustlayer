@@ -201,7 +201,52 @@ to regulatory controls and generates audit-ready compliance reports.
 - [ ] Add CI/CD integration tests for readiness scanner
 - [ ] Production hardening (Route C)
 
+### Phase 8: Compliance Depth, Agentic Trust, and the Evaluator Layer (In Progress)
+
+Master plan: [`docs/PHASE-8-DESIGN.md`](PHASE-8-DESIGN.md). ADRs 017–023.
+Twelve gaps (G0–G11) were verified against the code, not inferred; each slice
+closes named ones.
+
+- [x] **Slice 8.0 — event-type lockstep (closes G0).** `control.schema.json`
+  enumerated seven event types while `core-rs` `EventType` had nine, so
+  `article-50-v1.yaml` failed to load — the Art. 50 catalog was dead code, and
+  tests passed only because the scanner used hardcoded `art-50.x` checks.
+  Schema, spec §1.3/§2, and `docs/SCHEMA.md` corrected; payload contracts added
+  for `DISCLOSURE_SHOWN` / `CONTENT_MARKED`. Two regression suites:
+  `test_event_type_lockstep.py` (Rust enum as source of truth) and
+  `test_control_catalogs.py` (loads **every** catalog). `spec/v0.1/fixtures/`
+  is now read by all five implementations rather than only the Rust core.
+- [x] **Slice 8.1 — Art. 12 evidence integrity (ADR-017, closes G1 + G2).**
+  Per-`agent_id` hash chain with `Seq`/`EventHash` newtypes; retention floor
+  that outranks the count target; archive-on-overflow instead of deletion;
+  Ed25519 checkpoints with a normative preimage; `GET /v1/events/chained`,
+  `/v1/integrity/verify`, `/v1/integrity/checkpoints`; `after_seq` cursor;
+  five new Prometheus series. Spec §5.12 is normative.
+  - Verified end-to-end against a **running** guardian: six events chained and
+    paged, two signed checkpoints emitted, both re-verified offline by an
+    independent Ed25519 implementation (Python `cryptography`) directly from
+    the spec's preimage, and a byte edited into `events.jsonl` reported as
+    `first_bad_seq: 4, "event content does not match the recorded hash"`.
+  - **Known gap:** the `postgres` backend maintains no chain and answers the
+    integrity routes `501`. Deferred deliberately — CI has no database, and
+    untested SQL behind an Art. 12 claim is worse than an honest `501`.
+    Deployments needing both horizontal scale and Art. 12 integrity should run
+    the JSONL backend for now.
+- [ ] Slice 8.2 — evidence query v2 + assurance tiers (ADR-018, G3/G4/G9)
+- [ ] Slice 8.3 — agentic trust model (ADR-019, G7/G8/G10)
+- [ ] Slice 8.4 — `evaluators/` package (ADR-020, G11)
+- [ ] Slice 8.5 — Annex IV document model + remediation guidance (ADR-021, G5)
+- [ ] Slice 8.6 — Art. 73 incident pipeline (ADR-022, G6)
+- [ ] Slice 8.7 — agentic workbench UIX (ADR-023)
+
 ## 📝 Recent Updates
+- **2026-08-06**: Phase 8 Slices 8.0 + 8.1 landed. Event-type lockstep closes
+  gap G0 (the Art. 50 control catalog was unloadable); Art. 12 evidence
+  integrity ships the hash chain, retention floor, archive-on-overflow, signed
+  checkpoints, and the `/v1/integrity/*` routes (ADR-017, spec §5.12).
+  Conformance fixtures are now read by all five implementations. Test totals:
+  **451** (Rust 179, Python SDK 46 + 1 skipped, Hermes 57, MCP 21, compliance 28,
+  TS SDK 46, dashboard 36, Go 37 top-level). `./scripts/verify.sh test` exits 0.
 - **2026-07-18** (release hardening): Added a cross-harness `AGENTS.md`,
   project state documents, OpenCode Scout/Plan/Build/Review skills, and the
   `./scripts/verify.sh` release gate. Compliance YAML is schema validated and

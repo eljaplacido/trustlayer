@@ -144,15 +144,36 @@ irrelevant. Revisit in Phase 9 if a customer needs sublinear proofs.
 
 - `GET /v1/integrity/checkpoints?agent_id=…` — checkpoints plus the
   public key, so an auditor can verify offline.
-- `GET /v1/integrity/verify?agent_id=…&from_seq=…` — recompute and report
+- `GET /v1/integrity/verify?agent_id=…` — recompute and report
   `{ ok, chains: [{ agent_id, verified_through_seq, first_bad_seq,
   reason }] }`.
 - `GET /v1/events` gains an optional `after_seq` cursor. This is required
   by ADR-018's streaming evidence engine and is only well-defined because
   `seq` now exists — the two decisions are deliberately co-designed.
+- `GET /v1/events/chained?agent_id=…&after_seq=…&limit=…` — events with
+  their `seq` and `hash` **alongside** each event, never inside it.
 
-`GET /v1/events` responses gain optional `seq` and `hash` **alongside**
-each event in the response envelope, not inside the event object.
+*Revised during implementation (2026-08-05).* This originally put the
+chain metadata into the `GET /v1/events` response, which would have made
+one route return two different body shapes depending on whether a query
+parameter was present. Every client would then have to handle both, and
+the shipped dashboard and four SDKs would break the moment the envelope
+form was returned. A dedicated `/v1/events/chained` keeps one shape per
+route and leaves the v0.1 array response untouched.
+
+`after_seq` requires `agent_id` and returns `400` without it. Chain
+positions are scoped per agent (§2), so a cursor with no agent names no
+position; silently returning a differently-scoped page would make a
+paging evidence consumer skip events without knowing it.
+
+A backend that maintains no chain answers **`501`, not `500`**: the
+request was well-formed and the server is healthy, it simply cannot make
+the attestation. A `500` reads as a transient fault worth retrying, when
+in fact the deployment must be reconfigured.
+
+The normative definition of all of this is `spec/v0.1/05-http-api.md`
+§5.12, including the hash and signature preimages, so an auditor can
+verify without running this implementation.
 
 ### 7. Retention: a floor that outranks the cap
 
@@ -202,6 +223,28 @@ This is a behaviour change for existing `TRUSTLAYER_EVENT_RETENTION_MAX`
 users — archiving instead of deleting — and is strictly safer. It is
 called out in `CHANGELOG.md` and `docs/SCALING.md`.
 
+### 7b. Checkpoint signing (implementation notes, 2026-08-05)
+
+Two deviations from §5 as written, both recorded rather than quietly
+absorbed:
+
+- **`ed25519-dalek` is a non-optional dependency**, not gated behind the
+  `server` feature. Checkpointing is a property of the *store*, which is
+  not server-gated; cfg-gating the signature would give one store two
+  checkpoint formats depending on build flags, and a checkpoint whose
+  shape depends on how the binary was compiled is not an audit artifact.
+- **Key generation is deliberately not implemented.** A key minted by
+  the same process that writes the log is a key an operator can silently
+  re-mint after rewriting history. Generation belongs in the deployment's
+  existing key management; `docs/SCALING.md` carries the one-liner. The
+  loader refuses a group- or world-readable key file, because a signing
+  key anyone on the box can read provides no assurance and failing loudly
+  beats emitting checkpoints that only look authoritative.
+
+A checkpoint is also written on graceful shutdown. An agent that stops
+900 appends into a 1000-append interval would otherwise leave its most
+recent — often most interesting — evidence uncommitted.
+
 ### 8. Postgres parity
 
 `trace_events` gains `chain_seq BIGINT`, `prev_hash BYTEA`, `hash BYTEA`,
@@ -212,6 +255,16 @@ under one lock acquisition, so batching amortises the serialisation cost.
 Migration `0002_integrity_chain.sql`; existing rows are backfilled with
 `chain_seq NULL` and reported by `verify` as `unchained` — honest about
 what predates the feature rather than fabricating a chain over it.
+
+*Deferred during implementation (2026-08-05).* Not built. The Postgres
+backend answers every integrity route with `501`, which is accurate: it
+maintains no chain. The reason for deferring rather than shipping it is
+that CI has no database, so the SQL above could only be merged untested —
+and untested SQL sitting behind an Art. 12 tamper-evidence claim is worse
+than a backend that says plainly it cannot attest. Deployments needing
+both horizontal scale and Art. 12 integrity should run the JSONL backend
+until this lands; the gap is stated in `docs/CURRENT_STATUS.md` and
+`CHANGELOG.md` rather than left for a user to discover.
 
 ## Consequences
 

@@ -35,8 +35,8 @@ use tracing_subscriber::EnvFilter;
 
 use trustlayer_core::policy_watch::spawn_watcher;
 use trustlayer_core::{
-    build_router, AppState, CynepicGuardian, EventStore, IngestRateLimit, Policy, ServerMetrics,
-    TraceStore, DEFAULT_RETENTION_FLOOR_DAYS,
+    build_router, AppState, CheckpointPolicy, CheckpointSigner, CynepicGuardian, EventStore,
+    IngestRateLimit, Policy, ServerMetrics, TraceStore, DEFAULT_RETENTION_FLOOR_DAYS,
 };
 
 #[tokio::main]
@@ -93,6 +93,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .filter(|s| !s.is_empty());
 
+    // Kept alongside the trait object so shutdown can commit a final
+    // checkpoint — `TraceStore` is deliberately read-shaped and exposes no
+    // way to force one.
+    let jsonl_store: Option<Arc<EventStore>>;
+
     let events: Arc<dyn TraceStore> = if let Some(dsn) = pg_dsn {
         #[cfg(feature = "postgres")]
         {
@@ -103,6 +108,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "Event store: Postgres (TRUSTLAYER_DATABASE_URL set, max_connections={})",
                 pool_max.unwrap_or(10)
             );
+            // Postgres checkpoints on its own schedule inside the backend;
+            // there is no local EventStore to close out at shutdown.
+            jsonl_store = None;
             Arc::new(trustlayer_core::PostgresStore::connect(&dsn, pool_max).await?)
         }
         #[cfg(not(feature = "postgres"))]
@@ -148,13 +156,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ),
         }
 
-        let store = store
-            .with_retention(retention)
-            .with_retention_floor(retention_floor);
+        // ADR-017 §5: commitments to the chain head. A key that is set but
+        // unusable is fatal — degrading silently to unsigned would let a
+        // deployment believe it is signing when it is not.
+        let signer = CheckpointSigner::from_env()?;
+        let checkpoint_policy = CheckpointPolicy::from_env();
+        match (&signer, checkpoint_policy.is_disabled()) {
+            (_, true) => warn!(
+                "Chain checkpoints DISABLED. The chain still detects edits, but \
+                 nothing commits its head outside this process, so a rebuilt log \
+                 cannot be distinguished from an original one."
+            ),
+            (Some(s), false) => info!(
+                "Chain checkpoints: signed with Ed25519 public key {}. \
+                 Publish this key to auditors out of band.",
+                s.public_key_hex()
+            ),
+            (None, false) => warn!(
+                "Chain checkpoints: UNSIGNED (TRUSTLAYER_SIGNING_KEY not set). \
+                 Archive them off-box for them to mean anything."
+            ),
+        }
+
+        let store = Arc::new(
+            store
+                .with_retention(retention)
+                .with_retention_floor(retention_floor)
+                .with_checkpoint_policy(checkpoint_policy)
+                .with_signer(signer),
+        );
         for anomaly in store.chain_anomalies() {
             warn!("Event log integrity: {anomaly}");
         }
-        Arc::new(store)
+        jsonl_store = Some(store.clone());
+        store
     };
 
     let vault_path = std::env::var("TRUSTLAYER_VAULT_PATH")
@@ -234,6 +269,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+
+    // Commit a final checkpoint over whatever arrived since the last one. An
+    // agent that stops 900 appends into a 1000-append interval would otherwise
+    // leave its most recent — often most interesting — evidence uncommitted.
+    if let Some(store) = jsonl_store {
+        match store.force_checkpoints() {
+            Ok(written) if !written.is_empty() => {
+                info!("committed {} closing checkpoint(s)", written.len());
+            }
+            Ok(_) => {}
+            // Loud, but never fatal: the events are already durable, and
+            // exiting non-zero here would make a clean shutdown look failed.
+            Err(err) => warn!("could not commit closing checkpoints: {err}"),
+        }
+    }
     Ok(())
 }
 

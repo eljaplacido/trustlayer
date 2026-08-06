@@ -230,10 +230,15 @@ Idempotent on `trace_id`.
 { "stored": 2 }   // count of newly-stored (non-duplicate) events
 ```
 
-### `GET /v1/events?agent_id=&session_id=&event_type=&limit=N`
+### `GET /v1/events?agent_id=&session_id=&event_type=&limit=N&after_seq=S`
 Every query parameter is optional. `event_type` takes one of the
 `event_type` enum values; `limit` returns the most-recent N. Response is
 a chronological `AgentTraceEvent[]`.
+
+`after_seq` is a chain cursor (see integrity routes below) and requires
+`agent_id`, because chain positions are scoped per agent. Supplying it
+without one is a `400`. The response shape is unchanged either way — the
+chain metadata lives on its own route rather than reshaping this one.
 
 ### `GET /v1/sessions`
 One summary per `(agent_id, session_id)` pair, most-recent first:
@@ -268,6 +273,98 @@ One reflection note. `name` must be a bare `reflection-*.md` file name
 ```json
 { "name": "reflection-2026-05-22.md", "date": "2026-05-22", "content": "---\n..." }
 ```
+
+## Evidence-integrity HTTP API (Phase 8, ADR-017)
+
+Optional routes backing an EU AI Act Art. 12 tamper-evidence claim.
+Normative definition: [`spec/v0.1/05-http-api.md` §5.12](../spec/v0.1/05-http-api.md).
+An implementation that omits them must not claim tamper-evident logging.
+
+**Nothing here changes the `AgentTraceEvent` envelope.** A client cannot
+know its position in the log, so chain state is computed by the store on
+append and served *alongside* events, never inside them.
+
+Chains are scoped per `agent_id`: positions are 1-based and contiguous
+within one agent, and two agents both start at 1. That is the unit an
+auditor asks about, and it means verifying system X never requires
+disclosing system Y's events.
+
+### `GET /v1/events/chained?agent_id=A&after_seq=S&limit=N`
+`agent_id` is required. Pages by chain position, not offset — an offset
+cursor over a log being appended to (or compacted by retention) silently
+skips events.
+
+```json
+{
+  "agent_id": "checkout-assistant",
+  "events": [
+    { "seq": 41, "hash": "…64 hex…", "recorded_at": "2026-08-05T09:00:00+00:00",
+      "event": { "trace_id": "…", "…": "…" } }
+  ],
+  "next_after_seq": 41,
+  "head_seq": 900,
+  "archived_in_range": 0
+}
+```
+
+`recorded_at` is the **store's** clock, not the event's `timestamp`: a
+client clock is attacker-controlled, so it is the only claim the store
+can honestly make. `archived_in_range` counts positions whose event
+retention has moved to archive storage — reported, never silently
+skipped.
+
+### `GET /v1/integrity/verify?agent_id=A`
+Recomputes chains and reports the first divergence in each.
+
+```json
+{
+  "ok": true,
+  "chains": [
+    { "agent_id": "checkout-assistant", "entries_checked": 900,
+      "verified_through_seq": 900, "first_bad_seq": null, "reason": null }
+  ]
+}
+```
+
+A tampered log is `200` with `"ok": false` — the request succeeded, and
+its answer is that the log is broken. An unknown `agent_id` yields an
+empty `chains` array, never a vacuous pass.
+
+### `GET /v1/integrity/checkpoints?agent_id=A`
+Signed commitments to chain heads. The head hash commits to every prior
+position, so one checkpoint pins the whole prefix.
+
+```json
+{
+  "checkpoints": [
+    { "agent_id": "checkout-assistant", "seq": 1000, "head_hash": "…",
+      "created_at": "2026-08-05T09:00:00+00:00",
+      "public_key": "…64 hex…", "signature": "…128 hex…" }
+  ],
+  "verified_signatures": 1,
+  "invalid_signatures": 0
+}
+```
+
+`public_key` / `signature` are omitted when unsigned. Signatures are
+Ed25519 over `{"agent_id":…,"created_at":…,"head_hash":…,"seq":N}`
+(compact, key-ordered) so an auditor can verify with any Ed25519
+implementation.
+
+`verified_signatures` is **not** proof of authenticity — the key travels
+in the same response as the signature. Compare it against a key received
+out of band.
+
+### Status codes
+`400` for a cursor without an agent; `501` (not `500`) when the backend
+maintains no chain — the server is healthy, it just cannot attest, and a
+`500` would read as a retryable fault.
+
+### What this proves
+The log has not been altered since the store recorded it. It does **not**
+prove the emitting agent told the truth, nor that events which should
+have been recorded were — an event never submitted is invisible to all
+of it.
 
 ## Compatibility
 

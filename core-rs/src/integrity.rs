@@ -83,29 +83,48 @@ impl EventHash {
     }
 
     pub fn to_hex(self) -> String {
-        let mut out = String::with_capacity(64);
-        for byte in self.0 {
-            out.push_str(&format!("{byte:02x}"));
-        }
-        out
+        encode_hex(&self.0)
     }
 
     pub fn from_hex(value: &str) -> Result<Self> {
-        if value.len() != 64 {
-            return Err(Error::Integrity(format!(
-                "hash must be 64 hex characters, got {}",
-                value.len()
-            )));
-        }
         let mut bytes = [0u8; 32];
-        for (i, chunk) in value.as_bytes().chunks_exact(2).enumerate() {
-            let pair = std::str::from_utf8(chunk)
-                .map_err(|_| Error::Integrity("hash is not valid UTF-8".into()))?;
-            bytes[i] = u8::from_str_radix(pair, 16)
-                .map_err(|_| Error::Integrity(format!("hash contains non-hex byte {pair:?}")))?;
-        }
+        decode_hex_into(value, &mut bytes, "hash")?;
         Ok(EventHash(bytes))
     }
+}
+
+/// Lowercase hex encoding. Shared by hashes, public keys and signatures so
+/// every hex field in the evidence surface reads the same way.
+pub fn encode_hex(bytes: &[u8]) -> String {
+    use fmt::Write as _;
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        // Writing to a String is infallible; the Result is discarded rather
+        // than unwrapped so this stays panic-free on a production path.
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+/// Decode exactly `out.len()` bytes of hex into `out`.
+///
+/// `label` names the field in the error, so a bad signature and a bad hash do
+/// not produce the same message.
+pub fn decode_hex_into(value: &str, out: &mut [u8], label: &str) -> Result<()> {
+    let expected = out.len() * 2;
+    if value.len() != expected {
+        return Err(Error::Integrity(format!(
+            "{label} must be {expected} hex characters, got {}",
+            value.len()
+        )));
+    }
+    for (i, chunk) in value.as_bytes().chunks_exact(2).enumerate() {
+        let pair = std::str::from_utf8(chunk)
+            .map_err(|_| Error::Integrity(format!("{label} is not valid UTF-8")))?;
+        out[i] = u8::from_str_radix(pair, 16)
+            .map_err(|_| Error::Integrity(format!("{label} contains non-hex byte {pair:?}")))?;
+    }
+    Ok(())
 }
 
 impl fmt::Display for EventHash {

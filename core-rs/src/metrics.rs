@@ -15,6 +15,21 @@
 //!   stored* events through `POST /v1/events` (deduped on `trace_id`).
 //! - `trustlayer_check_duration_seconds` — `/v1/check` latency histogram
 //!   (default buckets, microseconds-to-seconds bracket).
+//!
+//! Evidence-integrity series (ADR-017 §7). These are **gauges refreshed at
+//! scrape time** from the trace store rather than counters incremented on the
+//! append path: the store is the authority on its own retention state, and a
+//! counter mirrored in two places drifts the moment one of them restarts.
+//! - `trustlayer_retention_live_events`
+//! - `trustlayer_retention_archived_total`
+//! - `trustlayer_retention_floor_blocked_total`
+//! - `trustlayer_integrity_checkpoints_total`
+//! - `trustlayer_integrity_chains_total`
+//!
+//! `trustlayer_retention_floor_blocked_total` deserves an alert. It rising
+//! means the live log is outgrowing its target because the retention floor is
+//! (correctly) refusing to evict evidence younger than Art. 12 allows. That is
+//! a disk-capacity problem to fix, never a reason to lower the floor.
 
 use axum::body::Body;
 use axum::extract::{MatchedPath, State};
@@ -22,9 +37,10 @@ use axum::http::Request;
 use axum::middleware::Next;
 use axum::response::Response;
 use prometheus::{
-    Histogram, HistogramOpts, IntCounter, IntCounterVec, Opts, Registry, TextEncoder,
+    Histogram, HistogramOpts, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder,
 };
 
+use crate::events::EvidenceStats;
 use crate::schema::Decision;
 use crate::server::AppState;
 
@@ -35,6 +51,11 @@ pub struct ServerMetrics {
     pub check_total: IntCounterVec,
     pub events_ingested_total: IntCounter,
     pub check_duration_seconds: Histogram,
+    pub retention_live_events: IntGauge,
+    pub retention_archived_total: IntGauge,
+    pub retention_floor_blocked_total: IntGauge,
+    pub integrity_checkpoints_total: IntGauge,
+    pub integrity_chains_total: IntGauge,
 }
 
 impl ServerMetrics {
@@ -68,6 +89,36 @@ impl ServerMetrics {
         ))
         .expect("check_duration_seconds construction");
 
+        let gauge = |name: &str, help: &str| {
+            let g = IntGauge::new(name, help).expect("gauge construction");
+            registry
+                .register(Box::new(g.clone()))
+                .expect("gauge registration");
+            g
+        };
+        let retention_live_events = gauge(
+            "trustlayer_retention_live_events",
+            "Events currently held in the live log.",
+        );
+        let retention_archived_total = gauge(
+            "trustlayer_retention_archived_total",
+            "Events moved to the archive log rather than deleted.",
+        );
+        let retention_floor_blocked_total = gauge(
+            "trustlayer_retention_floor_blocked_total",
+            "Evictions refused because the events were younger than the Art. 12 \
+             retention floor. Rising means add disk or shorten the floor — never \
+             that evidence was dropped.",
+        );
+        let integrity_checkpoints_total = gauge(
+            "trustlayer_integrity_checkpoints_total",
+            "Chain checkpoints committed by this store.",
+        );
+        let integrity_chains_total = gauge(
+            "trustlayer_integrity_chains_total",
+            "Distinct agents with an integrity chain.",
+        );
+
         registry
             .register(Box::new(requests_total.clone()))
             .expect("register requests_total");
@@ -95,7 +146,30 @@ impl ServerMetrics {
             check_total,
             events_ingested_total,
             check_duration_seconds,
+            retention_live_events,
+            retention_archived_total,
+            retention_floor_blocked_total,
+            integrity_checkpoints_total,
+            integrity_chains_total,
         }
+    }
+
+    /// Refresh the store-derived gauges. Called at scrape time.
+    ///
+    /// Values are clamped into `i64` by saturating rather than wrapping: a
+    /// counter that wrapped to a negative number would silence exactly the
+    /// alert it exists to raise.
+    pub fn observe_evidence(&self, stats: EvidenceStats) {
+        self.retention_live_events
+            .set(i64::try_from(stats.live_events).unwrap_or(i64::MAX));
+        self.retention_archived_total
+            .set(i64::try_from(stats.archived_total).unwrap_or(i64::MAX));
+        self.retention_floor_blocked_total
+            .set(i64::try_from(stats.floor_blocked_total).unwrap_or(i64::MAX));
+        self.integrity_checkpoints_total
+            .set(i64::try_from(stats.checkpoints_total).unwrap_or(i64::MAX));
+        self.integrity_chains_total
+            .set(i64::try_from(stats.chains_total).unwrap_or(i64::MAX));
     }
 
     pub fn record_decision(&self, decision: Decision) {
