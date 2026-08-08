@@ -11,7 +11,115 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from compliance.src.evidence_linker import EvidenceLinker
 from compliance.src.readiness_scanner import ReadinessScanner
+
+
+def _flatten_controls(framework: dict[str, Any]) -> list[dict[str, Any]]:
+    """Controls live under ``articles[].controls[]``, not at the top level."""
+    controls: list[dict[str, Any]] = []
+    for article in framework.get("articles", []):
+        controls.extend(article.get("controls", []))
+    top_level: list[dict[str, Any]] = framework.get("controls", [])
+    return controls + top_level
+
+
+#: How many events an audit package examines per system.
+#:
+#: ``EvidenceLinker`` defaults to 1000, which is a sensible interactive default
+#: and the wrong one here: an audit that silently examines the newest thousand
+#: events of a system with fifty thousand reports a coverage ratio over a sample
+#: while presenting it as the population. Raised, and the package says when the
+#: ceiling was reached so a truncated audit is never mistaken for a complete one.
+AUDIT_EVENT_LIMIT = 100_000
+
+
+def _link_runtime_evidence(
+    system: dict[str, Any],
+    framework_paths: list[Path],
+    event_limit: int = AUDIT_EVENT_LIMIT,
+) -> dict[str, Any] | None:
+    """Match recorded events against this system's controls.
+
+    Returns ``None`` when the system declares no ``trace_store_url`` — an audit
+    package for a system with no trace store should say nothing about runtime
+    evidence rather than imply there was none to find.
+
+    The readiness scan answers "is this project set up correctly"; it reads a
+    directory and never asks what actually ran. Without this, an audit package
+    for a system with a live trace store contained no evidence from it, and the
+    two halves of the compliance story — configured, and observed — never met.
+    """
+    trace_store_url = system.get("integration", {}).get("trace_store_url")
+    if not trace_store_url:
+        return None
+
+    linker = EvidenceLinker(trace_store_url=trace_store_url)
+    agent_id = system.get("integration", {}).get("agent_id")
+    events = (
+        linker.query_trace_store(agent_id=agent_id, limit=event_limit)
+        if agent_id
+        else linker.query_trace_store(limit=event_limit)
+    )
+
+    controls_evidence: list[dict[str, Any]] = []
+    for framework_path in framework_paths:
+        try:
+            framework = linker.load_control_framework(framework_path)
+        except Exception as exc:  # noqa: BLE001 - a bad framework file is not an audit failure
+            controls_evidence.append(
+                {
+                    "framework": framework_path.name,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            continue
+
+        for control in _flatten_controls(framework):
+            if not control.get("evidence_query"):
+                # Controls with no query are evidenced by documents, not events.
+                # Reporting them here would turn "not this kind of evidence" into
+                # "missing evidence", which is a finding they have not earned.
+                continue
+            evidence = linker.match_events_to_control(events, control)
+            # `to_dict()` is the linker's own serialisation. Hand-picking fields
+            # here would drift the moment ControlEvidence gains one — it already
+            # has, between assurance tiers and violations arriving.
+            controls_evidence.append(
+                {"framework": framework.get("framework", framework_path.stem), **evidence.to_dict()}
+            )
+
+    queried = [item for item in controls_evidence if "outcome" in item]
+    satisfied = sum(1 for item in queried if item["outcome"] == "satisfied")
+    # Kept apart from unsatisfied on purpose, mirroring QueryOutcome: "we cannot
+    # tell" and "we checked and it failed" call for different actions, and an
+    # audit package that merges them hands an auditor a failure where there is a
+    # blind spot.
+    indeterminate = sum(1 for item in queried if item["outcome"] == "indeterminate")
+
+    return {
+        "trace_store_url": trace_store_url,
+        "agent_id": agent_id,
+        "events_examined": len(events),
+        "event_limit": event_limit,
+        # Reaching the ceiling means the population is a window, and every
+        # coverage ratio below is computed over that window rather than over the
+        # system's history. An auditor cannot infer this from the numbers.
+        "events_truncated": len(events) >= event_limit,
+        # An empty event list is ambiguous by construction: EvidenceLinker
+        # catches every HTTP error and returns []. Saying so here stops a
+        # reachability failure from being read as a finding about the system.
+        "events_note": (
+            "no events returned — the trace store may be unreachable, or the "
+            "system may have recorded nothing. EvidenceLinker cannot distinguish these."
+            if not events
+            else None
+        ),
+        "controls_evidenced": satisfied,
+        "controls_indeterminate": indeterminate,
+        "controls_queried": len(queried),
+        "controls": controls_evidence,
+    }
 
 
 def generate_audit_package(
@@ -70,6 +178,7 @@ def generate_audit_package(
                 "frameworks_applied": frameworks_applied,
                 "readiness": report.summary,
                 "checks": checks,
+                "runtime_evidence": _link_runtime_evidence(system, framework_paths),
             }
         )
 
@@ -184,6 +293,61 @@ def _render_audit_markdown(audit: dict[str, Any]) -> str:
             )
 
         lines.append("")
+
+        runtime = system.get("runtime_evidence")
+        if runtime:
+            lines.extend(
+                [
+                    "### Runtime Evidence",
+                    "",
+                    f"Matched against `{runtime['trace_store_url']}` — "
+                    f"{runtime['events_examined']} event(s) examined, "
+                    f"{runtime['controls_evidenced']}/{runtime['controls_queried']} "
+                    "queryable control(s) evidenced"
+                    + (
+                        f", {runtime['controls_indeterminate']} indeterminate."
+                        if runtime["controls_indeterminate"]
+                        else "."
+                    ),
+                    "",
+                ]
+            )
+            if runtime.get("events_truncated"):
+                lines.extend(
+                    [
+                        (
+                            f"> ⚠️ Examined the {runtime['event_limit']} most recent events, "
+                            "which is the ceiling — older events were not considered, and the "
+                            "ratios below describe that window rather than the whole history."
+                        ),
+                        "",
+                    ]
+                )
+            if runtime.get("events_note"):
+                # An empty result is ambiguous by construction and must not be
+                # read as a finding about the system.
+                lines.extend([f"> ⚠️ {runtime['events_note']}", ""])
+            if runtime["controls"]:
+                lines.extend(
+                    [
+                        "| Status | Control | Events | Note |",
+                        "|--------|---------|--------|------|",
+                    ]
+                )
+                for item in runtime["controls"]:
+                    if "error" in item:
+                        lines.append(
+                            f"| ❓ | `{item['framework']}` | — | could not load: {item['error']} |"
+                        )
+                        continue
+                    outcome = item.get("outcome", "indeterminate")
+                    icon = {"satisfied": "✅", "unsatisfied": "❌"}.get(outcome, "❓")
+                    note = "" if outcome == "satisfied" else (item.get("gap_reason") or outcome)
+                    lines.append(
+                        f"| {icon} | {item['control_id']} — {item['control_title']} | "
+                        f"{item.get('satisfied_count', 0)}/{item.get('population', 0)} | {note} |"
+                    )
+                lines.append("")
 
     lines.extend(
         [
