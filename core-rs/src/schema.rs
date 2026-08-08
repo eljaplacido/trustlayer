@@ -75,6 +75,20 @@ pub struct AgentTraceEvent {
     pub session_id: String,
     pub timestamp: DateTime<Utc>,
     pub event_type: EventType,
+    /// Causal parent — the `trace_id` of the event that caused this one
+    /// (ADR-019 §1). OPTIONAL; absent by default.
+    ///
+    /// Unlike the integrity chain (ADR-017 §1), causality is genuinely
+    /// **client-side knowledge**: only the agent knows which call spawned
+    /// which. Inferring it from arrival order breaks under concurrency, which
+    /// is precisely the regime agentic systems operate in — so the field is
+    /// carried explicitly or not at all, and consumers report `unknown` rather
+    /// than guessing.
+    ///
+    /// Serialised only when present, so an emitter that does not set it
+    /// produces byte-identical output to v0.1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_trace_id: Option<Uuid>,
     #[serde(default)]
     pub cynefin_domain: CynefinDomain,
     #[serde(default)]

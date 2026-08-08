@@ -87,6 +87,14 @@ class AgentTraceEvent(BaseModel):
     session_id: str
     timestamp: datetime = Field(default_factory=_utcnow)
     event_type: EventType
+    #: Causal parent — the `trace_id` of the event that caused this one
+    #: (ADR-019). Optional and absent by default.
+    #:
+    #: Causality is client-side knowledge: only the agent knows which call
+    #: spawned which. Inferring it from arrival order breaks under
+    #: concurrency, which is the regime agentic systems operate in, so it is
+    #: carried explicitly or not at all.
+    parent_trace_id: UUID | None = None
     cynefin_domain: CynefinDomain = CynefinDomain.DISORDER
     payload: dict[str, Any] = Field(default_factory=dict)
     metrics: Metrics = Field(default_factory=Metrics)

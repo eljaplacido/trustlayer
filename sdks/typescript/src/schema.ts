@@ -72,6 +72,15 @@ export const AgentTraceEvent = z
     session_id: z.string(),
     timestamp: z.string().datetime({ offset: true }),
     event_type: EventType,
+    /**
+     * Causal parent — the `trace_id` of the event that caused this one
+     * (ADR-019). Optional and absent by default.
+     *
+     * Causality is client-side knowledge: only the agent knows which call
+     * spawned which. Inferring it from arrival order breaks under
+     * concurrency, which is the regime agentic systems operate in.
+     */
+    parent_trace_id: z.string().uuid().optional(),
     cynefin_domain: CynefinDomain.default("DISORDER"),
     payload: z.record(z.unknown()).default({}),
     metrics: Metrics.default({}),

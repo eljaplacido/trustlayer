@@ -37,6 +37,7 @@ The reference implementations enforce this with Pydantic
   "session_id":     "<string>",
   "timestamp":      "<ISO 8601 with offset>",
   "event_type":     "<EventType>",
+  "parent_trace_id":"<UUID v4, optional>",
   "cynefin_domain": "<CynefinDomain, default DISORDER>",
   "payload":        { /* event-specific, see §2 */ },
   "metrics":        { /* see §1.5 */ }
@@ -80,6 +81,29 @@ The reference implementations enforce this with Pydantic
   `DISCLOSURE_SHOWN`, `CONTENT_MARKED`, `HUMAN_DECISION`,
   `HARNESS_SNAPSHOT`.
 - Values MUST be encoded in `SCREAMING_SNAKE_CASE`.
+
+### `parent_trace_id` — OPTIONAL
+
+- When present, MUST be a UUID naming the `trace_id` of the event that
+  **caused** this one. Absent by default.
+- Emitters MUST NOT invent a value. Causality is client-side knowledge —
+  only the agent knows which call spawned which — and inferring it from
+  arrival order breaks under concurrency, which is precisely the regime
+  agentic systems operate in.
+- Receivers MUST treat an absent `parent_trace_id` as *unknown*, never as
+  *no parent*. Any derived metric (delegation depth, fan-out, causal
+  subtree) MUST report `unknown` rather than assume a flat structure.
+- A value naming a `trace_id` the receiver has not seen is **not** an
+  error. Events may arrive out of order, or the parent may lie outside
+  the queried window. Receivers SHOULD retain the reference.
+- Emitters MUST NOT create a cycle. Receivers MUST NOT assume its
+  absence; a cycle-tolerant traversal is required.
+- A spawned sub-agent's `AGENT_START` SHOULD carry the `trace_id` of the
+  `TOOL_CALL` that spawned it. That single convention is what makes
+  cross-agent delegation depth computable at all.
+
+This field mirrors the parent-child relation in OpenTelemetry, so a
+bridge (§5.11) maps it directly onto span parentage.
 
 ### `cynefin_domain` — OPTIONAL (default `DISORDER`)
 

@@ -56,6 +56,7 @@ fn calc_event() -> AgentTraceEvent {
         session_id: "s".into(),
         timestamp: Utc::now(),
         event_type: EventType::ToolCall,
+        parent_trace_id: None,
         cynefin_domain: CynefinDomain::Clear,
         payload,
         metrics: Default::default(),

@@ -80,3 +80,24 @@ def test_fixture_rejects_an_unknown_envelope_field(fixture: Path) -> None:
 
     with pytest.raises(pydantic.ValidationError):
         AgentTraceEvent.model_validate(raw)
+
+
+def test_absent_parent_trace_id_parses_as_none() -> None:
+    """Absent means *unknown*, never *no parent* (spec §1.3).
+
+    Every v0.1 fixture predates the field, so this also proves the addition is
+    backwards compatible in the direction that matters: old wire, new parser.
+    """
+    event = AgentTraceEvent.model_validate_json(
+        (FIXTURE_DIR / "event-canonical-go.json").read_text(encoding="utf-8")
+    )
+
+    assert event.parent_trace_id is None
+
+
+def test_parent_trace_id_round_trips_when_present() -> None:
+    event = AgentTraceEvent.model_validate_json(
+        (FIXTURE_DIR / "event-delegated-go.json").read_text(encoding="utf-8")
+    )
+
+    assert str(event.parent_trace_id) == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"

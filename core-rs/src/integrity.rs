@@ -407,6 +407,7 @@ mod tests {
                 .parse::<DateTime<Utc>>()
                 .expect("timestamp"),
             event_type: EventType::ToolCall,
+            parent_trace_id: None,
             cynefin_domain: CynefinDomain::default(),
             payload,
             metrics: Metrics::default(),

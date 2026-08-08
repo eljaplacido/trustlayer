@@ -30,6 +30,7 @@ The envelope for every event emitted by an agent.
   "session_id": "string",
   "timestamp": "ISO-8601 with offset (e.g. 2026-05-12T09:00:00+00:00)",
   "event_type": "AGENT_START | TOOL_CALL | TOOL_RESULT | LLM_CALL | POLICY_CHECK | HUMAN_ESCALATION | AGENT_END | DISCLOSURE_SHOWN | CONTENT_MARKED | HUMAN_DECISION | HARNESS_SNAPSHOT",
+  "parent_trace_id": "uuid-v4",   // optional — causal parent; omitted when unset
   "cynefin_domain": "CLEAR | COMPLICATED | COMPLEX | CHAOTIC | DISORDER",
   "payload": { /* event-specific, see below */ },
   "metrics": {
@@ -44,6 +45,16 @@ The envelope for every event emitted by an agent.
 ### Rules
 - `trace_id` is **per event**, not per session. Group by `session_id`
   for a logical agent run.
+- `parent_trace_id` is **optional** and names the event that *caused* this
+  one. Only the agent knows which call spawned which, so emitters carry it
+  explicitly or not at all — inferring it from arrival order breaks under
+  concurrency, which is the regime agentic systems run in. **Absent means
+  unknown, never "no parent"**: derived metrics report `unknown` rather
+  than assuming a flat structure. A spawned sub-agent's `AGENT_START`
+  should carry the `trace_id` of the `TOOL_CALL` that spawned it, which is
+  what makes cross-agent delegation depth computable. It is omitted from
+  the wire entirely when unset, so v0.1 emitters produce byte-identical
+  output.
 - `timestamp` must include a UTC offset. Emitters default to `now(utc)`.
 - `cynefin_domain` defaults to `DISORDER` (unknown). The
   [Cynefin framework](https://en.wikipedia.org/wiki/Cynefin_framework)

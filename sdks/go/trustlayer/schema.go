@@ -215,11 +215,18 @@ func (m *Metrics) UnmarshalJSON(data []byte) error {
 
 // AgentTraceEvent is the canonical envelope (spec §1).
 type AgentTraceEvent struct {
-	TraceID       uuid.UUID      `json:"trace_id"`
-	AgentID       string         `json:"agent_id"`
-	SessionID     string         `json:"session_id"`
-	Timestamp     time.Time      `json:"timestamp"`
-	EventType     EventType      `json:"event_type"`
+	TraceID   uuid.UUID `json:"trace_id"`
+	AgentID   string    `json:"agent_id"`
+	SessionID string    `json:"session_id"`
+	Timestamp time.Time `json:"timestamp"`
+	EventType EventType `json:"event_type"`
+	// ParentTraceID is the causal parent — the TraceID of the event that
+	// caused this one (ADR-019). Optional and omitted when unset.
+	//
+	// Causality is client-side knowledge: only the agent knows which call
+	// spawned which. Inferring it from arrival order breaks under
+	// concurrency, which is the regime agentic systems operate in.
+	ParentTraceID *uuid.UUID     `json:"parent_trace_id,omitempty"`
 	CynefinDomain CynefinDomain  `json:"cynefin_domain,omitempty"`
 	Payload       map[string]any `json:"payload,omitempty"`
 	Metrics       Metrics        `json:"metrics,omitempty"`
@@ -277,14 +284,15 @@ func WithTimestamp(t time.Time) EventOption {
 // envelopeKeys is the closed set of top-level fields permitted on an
 // AgentTraceEvent (spec §1.2). Any other top-level key is a wire error.
 var envelopeKeys = map[string]struct{}{
-	"trace_id":       {},
-	"agent_id":       {},
-	"session_id":     {},
-	"timestamp":      {},
-	"event_type":     {},
-	"cynefin_domain": {},
-	"payload":        {},
-	"metrics":        {},
+	"trace_id":        {},
+	"agent_id":        {},
+	"session_id":      {},
+	"timestamp":       {},
+	"event_type":      {},
+	"parent_trace_id": {},
+	"cynefin_domain":  {},
+	"payload":         {},
+	"metrics":         {},
 }
 
 // UnmarshalJSON enforces the strict envelope (W1 conformance) before

@@ -1,0 +1,13 @@
+{
+  "trace_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "agent_id": "sub-agent",
+  "session_id": "S43",
+  "timestamp": "2026-08-07T10:00:05Z",
+  "event_type": "AGENT_START",
+  "parent_trace_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "cynefin_domain": "COMPLEX",
+  "payload": {
+    "goal": "Summarise the fetched document"
+  },
+  "metrics": {}
+}

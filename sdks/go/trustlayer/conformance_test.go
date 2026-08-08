@@ -15,6 +15,7 @@
 package trustlayer
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -163,5 +164,50 @@ func TestFixturesRejectUnknownEnvelopeField(t *testing.T) {
 				t.Error("unknown envelope field was accepted; W1 strictness is not enforced")
 			}
 		})
+	}
+}
+
+// TestParentTraceIDIsOmittedWhenUnset guards the additive property of the
+// field (spec §1.3). If it serialised as null when unset, every emitter that
+// never sets it would start changing the bytes of a shipped format — and the
+// byte-identical fixture guarantee the conformance suite rests on would break.
+func TestParentTraceIDIsOmittedWhenUnset(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(fixtureDir(t), "event-canonical-go.json"))
+	if err != nil {
+		t.Fatalf("reading fixture: %v", err)
+	}
+
+	var event AgentTraceEvent
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("parsing: %v", err)
+	}
+	if event.ParentTraceID != nil {
+		t.Errorf("v0.1 fixture must parse with no parent: %v", event.ParentTraceID)
+	}
+
+	encoded, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("encoding: %v", err)
+	}
+	if bytes.Contains(encoded, []byte("parent_trace_id")) {
+		t.Errorf("unset parent_trace_id must not be serialised: %s", encoded)
+	}
+}
+
+func TestParentTraceIDRoundTripsWhenPresent(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(fixtureDir(t), "event-delegated-go.json"))
+	if err != nil {
+		t.Fatalf("reading fixture: %v", err)
+	}
+
+	var event AgentTraceEvent
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("parsing: %v", err)
+	}
+	if event.ParentTraceID == nil {
+		t.Fatal("parent_trace_id must survive the round trip")
+	}
+	if got := event.ParentTraceID.String(); got != "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" {
+		t.Errorf("parent_trace_id: got %q", got)
 	}
 }

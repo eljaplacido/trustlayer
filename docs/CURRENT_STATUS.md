@@ -282,7 +282,9 @@ closes named ones.
   is now eleven event types. `HUMAN_DECISION` closes a dependency Slice 8.2
   created — the `resolution` predicate pairs escalations with decisions, and no
   SDK could emit the second half until now.
-  - **Open:** `parent_trace_id` (the only envelope change in Phase 8), the
+  `parent_trace_id` also shipped — the only envelope change in Phase 8, omitted
+  from the wire when unset so the canonical fixture is byte-for-byte unchanged.
+  - **Open:** the
     derived workflow graph, and untrusted-to-privileged flow detection. The
     `trust_tier` vocabulary is in the wire format; the detector is not written.
     Most graph metrics degrade to `unknown` without `parent_trace_id`, so

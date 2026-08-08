@@ -259,10 +259,24 @@ Two details worth recording:
 
 **Not yet built.** Stated here so it is not mistaken for done:
 
-- **`parent_trace_id`** (§1). The only envelope change in Phase 8, and the one
-  every derived metric in §2 depends on. Deferred because it touches the shipped
-  v0.1 envelope in four SDKs, and it is worth landing on its own rather than
-  behind two new event types.
+- ~~`parent_trace_id`~~ **— shipped 2026-08-08.** The only envelope change in
+  Phase 8. Landed in `core-rs` and all four SDKs, normative in spec §1.3, with
+  a `event-delegated-go.json` fixture and round-trip tests in every
+  implementation.
+
+  Three properties are asserted by test rather than assumed:
+
+  - **Omitted from the wire when unset.** `go run ./examples/conformance
+    canonical` still produces a byte-identical `event-canonical-go.json`. Had
+    it serialised as `null`, every emitter that never sets it would have
+    started changing the bytes of a shipped format for no reason, and the
+    byte-identical fixture guarantee the whole conformance suite rests on would
+    have broken.
+  - **Absent means *unknown*, never *no parent*.** Derived metrics must report
+    `unknown` rather than assume a flat structure — a fabricated zero is worse
+    than a missing number, because it looks like an answer.
+  - **A dangling reference is not an error.** Events arrive out of order and a
+    parent may lie outside the queried window; receivers retain the reference.
 - **The workflow graph** (§2) — `delegation_depth`, `fan_out`, `retry_burst`,
   `cycle_count`, `time_to_escalation`, `unresolved_escalations`. Without
   `parent_trace_id` most of these degrade to `unknown` anyway, so building them

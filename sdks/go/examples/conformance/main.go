@@ -16,6 +16,7 @@
 //	go run ./examples/conformance content-marked   > ../../spec/v0.1/fixtures/event-content-marked-go.json
 //	go run ./examples/conformance human-decision   > ../../spec/v0.1/fixtures/event-human-decision-go.json
 //	go run ./examples/conformance harness-snapshot > ../../spec/v0.1/fixtures/event-harness-snapshot-go.json
+//	go run ./examples/conformance delegated        > ../../spec/v0.1/fixtures/event-delegated-go.json
 package main
 
 import (
@@ -37,6 +38,7 @@ var fixtures = map[string]func() trustlayer.AgentTraceEvent{
 	"content-marked":   contentMarked,
 	"human-decision":   humanDecision,
 	"harness-snapshot": harnessSnapshot,
+	"delegated":        delegatedAgentStart,
 }
 
 func main() {
@@ -222,5 +224,25 @@ func harnessSnapshot() trustlayer.AgentTraceEvent {
 		trustlayer.WithTimestamp(mustTime("2026-08-07T10:00:00+00:00")),
 	)
 	ev.TraceID = uuid.MustParse("99999999-9999-4999-8999-999999999999")
+	return ev
+}
+
+// delegatedAgentStart exercises parent_trace_id (spec 1.3): a sub-agent's
+// AGENT_START carrying the trace_id of the TOOL_CALL that spawned it. That
+// single convention is what makes cross-agent delegation depth computable.
+func delegatedAgentStart() trustlayer.AgentTraceEvent {
+	parent := uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+	ev := trustlayer.NewEvent(
+		"sub-agent",
+		"S43",
+		trustlayer.EventAgentStart,
+		trustlayer.WithCynefin(trustlayer.CynefinComplex),
+		trustlayer.WithPayload(map[string]any{
+			"goal": "Summarise the fetched document",
+		}),
+		trustlayer.WithTimestamp(mustTime("2026-08-07T10:00:05+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+	ev.ParentTraceID = &parent
 	return ev
 }

@@ -162,10 +162,23 @@ Landed across every layer in one commit per the lockstep rule G0 taught —
 `core-rs`, all four SDKs, `control.schema.json`, spec §1.3/§2/§6,
 `docs/SCHEMA.md`, two Go-generated fixtures, and cross-language assertions.
 
-**Still open in ADR-019**, stated rather than left to be discovered:
-`parent_trace_id` (the only envelope change in Phase 8), the derived workflow
-graph, and untrusted-to-privileged flow detection. The `trust_tier` vocabulary
-ships in the wire format; the detector that consumes it does not exist yet.
+- **`parent_trace_id`** (spec §1.3) — the only envelope change in Phase 8, and
+  the field every derived workflow metric depends on. Optional, and **omitted
+  from the wire when unset**, so v0.1 emitters produce byte-identical output;
+  the canonical fixture is unchanged byte-for-byte and a test enforces it.
+  - Causality is client-side knowledge: only the agent knows which call spawned
+    which, and inferring it from arrival order breaks under concurrency —
+    exactly the regime agentic systems run in. Emitters MUST NOT invent a value.
+  - **Absent means *unknown*, never *no parent*.** Derived metrics report
+    `unknown` rather than assume a flat structure; a fabricated zero looks like
+    an answer.
+  - A dangling reference is not an error — events arrive out of order and a
+    parent may lie outside the queried window.
+
+**Still open in ADR-019**, stated rather than left to be discovered: the derived
+workflow graph and untrusted-to-privileged flow detection. The `trust_tier`
+vocabulary ships in the wire format; the detector that consumes it does not
+exist yet.
 
 ### Changed (Phase 8)
 - **`TRUSTLAYER_EVENT_RETENTION_MAX` no longer deletes.** It was a hard cap

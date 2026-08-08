@@ -81,3 +81,24 @@ describe("v0.1 conformance fixtures", () => {
     expect(() => AgentTraceEvent.parse(raw)).toThrow();
   });
 });
+
+describe("parent_trace_id (spec §1.3)", () => {
+  it("is absent — meaning unknown, not 'no parent' — on v0.1 fixtures", () => {
+    const parsed = AgentTraceEvent.parse(readFixture("event-canonical-go.json"));
+
+    expect(parsed.parent_trace_id).toBeUndefined();
+  });
+
+  it("round-trips when present", () => {
+    const parsed = AgentTraceEvent.parse(readFixture("event-delegated-go.json"));
+
+    expect(parsed.parent_trace_id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  });
+
+  it("rejects a non-UUID parent_trace_id", () => {
+    const raw = readFixture("event-delegated-go.json") as Record<string, unknown>;
+    raw.parent_trace_id = "not-a-uuid";
+
+    expect(() => AgentTraceEvent.parse(raw)).toThrow();
+  });
+});

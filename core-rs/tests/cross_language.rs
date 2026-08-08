@@ -356,3 +356,43 @@ fn harness_snapshot_carries_prompt_hashes_not_prompt_text() {
         "the snapshot must not carry prompt text"
     );
 }
+
+/// spec §1.3 — `parent_trace_id` carries causality the receiver cannot infer.
+#[test]
+fn parses_delegated_fixture_with_parent_trace_id() {
+    let event = load_fixture("event-delegated-go.json");
+
+    assert_eq!(event.event_type, EventType::AgentStart);
+    assert_eq!(
+        event.parent_trace_id.map(|id| id.to_string()).as_deref(),
+        Some("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    );
+}
+
+/// An absent `parent_trace_id` MUST mean *unknown*, not *no parent*.
+///
+/// Every v0.1 fixture predates the field, so this also proves the addition is
+/// backwards compatible in the direction that matters: old wire, new parser.
+#[test]
+fn absent_parent_trace_id_parses_as_none() {
+    let event = load_fixture("event-canonical-go.json");
+
+    assert_eq!(event.parent_trace_id, None);
+}
+
+/// The field MUST NOT appear on the wire when unset.
+///
+/// Otherwise every emitter that never sets it would start writing
+/// `"parent_trace_id": null`, changing the bytes of a shipped format for no
+/// reason — and breaking the byte-identical fixture guarantee the conformance
+/// suite depends on.
+#[test]
+fn parent_trace_id_is_omitted_when_absent() {
+    let event = load_fixture("event-canonical-go.json");
+    let encoded = serde_json::to_string(&event).expect("serialise");
+
+    assert!(
+        !encoded.contains("parent_trace_id"),
+        "unset parent_trace_id must not be serialised: {encoded}"
+    );
+}
