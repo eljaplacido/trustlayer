@@ -20,7 +20,8 @@ def _flatten_controls(framework: dict[str, Any]) -> list[dict[str, Any]]:
     controls: list[dict[str, Any]] = []
     for article in framework.get("articles", []):
         controls.extend(article.get("controls", []))
-    return controls + framework.get("controls", [])
+    top_level: list[dict[str, Any]] = framework.get("controls", [])
+    return controls + top_level
 
 
 #: How many events an audit package examines per system.
