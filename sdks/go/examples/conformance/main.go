@@ -14,6 +14,8 @@
 //	go run ./examples/conformance canonical        > ../../spec/v0.1/fixtures/event-canonical-go.json
 //	go run ./examples/conformance disclosure-shown > ../../spec/v0.1/fixtures/event-disclosure-shown-go.json
 //	go run ./examples/conformance content-marked   > ../../spec/v0.1/fixtures/event-content-marked-go.json
+//	go run ./examples/conformance human-decision   > ../../spec/v0.1/fixtures/event-human-decision-go.json
+//	go run ./examples/conformance harness-snapshot > ../../spec/v0.1/fixtures/event-harness-snapshot-go.json
 package main
 
 import (
@@ -33,6 +35,8 @@ var fixtures = map[string]func() trustlayer.AgentTraceEvent{
 	"canonical":        canonicalToolCall,
 	"disclosure-shown": disclosureShown,
 	"content-marked":   contentMarked,
+	"human-decision":   humanDecision,
+	"harness-snapshot": harnessSnapshot,
 }
 
 func main() {
@@ -141,5 +145,82 @@ func contentMarked() trustlayer.AgentTraceEvent {
 		trustlayer.WithTimestamp(mustTime("2026-07-03T10:01:00+00:00")),
 	)
 	ev.TraceID = uuid.MustParse("66666666-6666-4666-8666-666666666666")
+	return ev
+}
+
+// humanDecision closes the Art. 14 loop: the *outcome* of an escalation
+// (spec 2.10). Pinned latency because the escalation-to-decision gap is the
+// number Art. 14 effectiveness is actually measured on.
+func humanDecision() trustlayer.AgentTraceEvent {
+	decisionLatency := 41200.0
+	ev := trustlayer.NewEvent(
+		"art14-agent",
+		"S14",
+		trustlayer.EventHumanDecision,
+		trustlayer.WithCynefin(trustlayer.CynefinComplicated),
+		trustlayer.WithPayload(map[string]any{
+			"escalation_trace_id": "77777777-7777-4777-8777-777777777777",
+			"decision":            "APPROVE",
+			// Pseudonymous by design: Art. 14(4) needs an identified natural
+			// person, not a name in a log that ships to third parties.
+			"reviewer_id": "reviewer-7f3a",
+			"rationale":   "Amount within delegated authority; vendor previously verified.",
+		}),
+		trustlayer.WithMetrics(trustlayer.Metrics{LatencyMs: &decisionLatency}),
+		trustlayer.WithTimestamp(mustTime("2026-08-07T10:02:00+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	return ev
+}
+
+// harnessSnapshot fingerprints the configuration a session ran under
+// (spec 2.11). Note prompt *hashes* only — a system prompt is a trade secret
+// and often carries customer data, and change detection only needs to know
+// that it changed.
+func harnessSnapshot() trustlayer.AgentTraceEvent {
+	ev := trustlayer.NewEvent(
+		"art43-agent",
+		"S43",
+		trustlayer.EventHarnessSnapshot,
+		trustlayer.WithCynefin(trustlayer.CynefinClear),
+		trustlayer.WithPayload(map[string]any{
+			"harness_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			"model_bindings": []any{
+				map[string]any{
+					"role":        "planner",
+					"model":       "claude-opus-5",
+					"provider":    "anthropic",
+					"params_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+				},
+			},
+			"tools": []any{
+				map[string]any{
+					"name":         "payments.transfer",
+					"version":      "1.4.0",
+					"trust_tier":   "privileged",
+					"capabilities": []any{"payments"},
+				},
+				map[string]any{
+					"name":         "web.fetch",
+					"version":      "0.9.1",
+					"trust_tier":   "untrusted",
+					"capabilities": []any{"net.egress"},
+				},
+			},
+			"mcp_servers": []any{
+				map[string]any{"name": "gitnexus", "version": "1.0.0", "transport": "stdio"},
+			},
+			"prompt_hashes": map[string]any{
+				"system": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+			},
+			"autonomy": map[string]any{
+				"max_delegation_depth": 3,
+				"human_in_loop":        true,
+			},
+			"sdk": map[string]any{"name": "trustlayer-go", "version": "0.1.0"},
+		}),
+		trustlayer.WithTimestamp(mustTime("2026-08-07T10:00:00+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("99999999-9999-4999-8999-999999999999")
 	return ev
 }

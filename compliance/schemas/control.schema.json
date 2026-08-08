@@ -104,7 +104,9 @@
                           "HUMAN_ESCALATION",
                           "AGENT_END",
                           "DISCLOSURE_SHOWN",
-                          "CONTENT_MARKED"
+                          "CONTENT_MARKED",
+                          "HUMAN_DECISION",
+                          "HARNESS_SNAPSHOT"
                         ]
                       }
                     },

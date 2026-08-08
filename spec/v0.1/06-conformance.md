@@ -38,7 +38,7 @@ An implementation claiming this surface MUST:
   reject timestamps without an offset (§1.3 `timestamp`).
 - **W4.** Encode and decode the `event_type`, `cynefin_domain`, and
   `Decision` enums in `SCREAMING_SNAKE_CASE` exactly.
-- **W5.** Treat the nine event types defined in §2 as the v0.1 set
+- **W5.** Treat the eleven event types defined in §2 as the v0.1 set
   and preserve unknown values on receipt (§2.10).
 - **W6.** Preserve unknown keys inside `payload` and `metrics`
   through serialise / deserialise cycles (§1.4, §1.5).

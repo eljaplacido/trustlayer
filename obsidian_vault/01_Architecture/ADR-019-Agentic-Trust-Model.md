@@ -2,7 +2,8 @@
 adr: 19
 title: Agentic Trust Model — Harness, Workflow, Envelope
 date: 2026-08-02
-status: proposed
+status: partially-implemented
+implemented: 2026-08-08
 ---
 
 # ADR-019 — Agentic Trust Model: Harness, Workflow, Envelope
@@ -231,3 +232,51 @@ AI-generated content is still settling.
 - Envelope evaluation is post-hoc, so a violation is detected after the
   fact. Documented plainly: Phase 8 gives you the evidence and the alarm,
   Phase 9 gives you the brake.
+
+## Implementation status (2026-08-08)
+
+**§1 shipped, in part.** The two event types landed across every layer in one
+commit, under the lockstep discipline G0 taught: `core-rs` `EventType`, all
+four SDKs, `control.schema.json`, spec §2.10/§2.11, `docs/SCHEMA.md`, two Go-
+generated fixtures, and cross-language assertions. Spec §1.3, §2 and §6 now say
+"eleven".
+
+`HUMAN_DECISION` was not optional to defer. ADR-018 shipped a `resolution`
+predicate that pairs `HUMAN_ESCALATION` with `HUMAN_DECISION`, and until this
+commit no SDK could emit the second half — the predicate was expressible and
+unusable. Closing that gap in the same phase it was opened is the point.
+
+Two details worth recording:
+
+- **`escalation_trace_id` is REQUIRED, not inferred.** Pairing by ordering
+  looks adequate in a test and breaks under concurrency, which is the regime
+  agentic systems operate in. Requiring the id makes the pairing wrong-or-
+  absent rather than quietly wrong.
+- **A cross-language test asserts the snapshot carries prompt *hashes*, not
+  prompt text.** Fixtures are copied by integrators; one that leaked a system
+  prompt would teach the wrong shape to everyone who read it. The test is
+  cheap and the failure mode is not recoverable.
+
+**Not yet built.** Stated here so it is not mistaken for done:
+
+- **`parent_trace_id`** (§1). The only envelope change in Phase 8, and the one
+  every derived metric in §2 depends on. Deferred because it touches the shipped
+  v0.1 envelope in four SDKs, and it is worth landing on its own rather than
+  behind two new event types.
+- **The workflow graph** (§2) — `delegation_depth`, `fan_out`, `retry_burst`,
+  `cycle_count`, `time_to_escalation`, `unresolved_escalations`. Without
+  `parent_trace_id` most of these degrade to `unknown` anyway, so building them
+  first would ship a module whose headline metrics are structurally
+  unavailable.
+- **The tool privilege lattice and untrusted-to-privileged flow detection**
+  (§3). The `trust_tier` vocabulary is in the wire format and the fixture; the
+  detector that consumes it is not written. When it is, §3's honesty
+  requirement stands: it is a causal-proximity heuristic, reported as a finding
+  for review, never as a violation, with the word "heuristic" in the CLI, the
+  dashboard and the audit package.
+- **The trust envelope** (§4) and substantial-modification change records.
+
+Until the detector exists, a `HARNESS_SNAPSHOT` is evidence an operator can
+diff by hand and nothing more. That is still worth emitting now: Art. 43
+detection needs a *history* to compare against, and a history started in
+2026 cannot be created retroactively in 2027.

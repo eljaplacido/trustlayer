@@ -1,0 +1,56 @@
+{
+  "trace_id": "99999999-9999-4999-8999-999999999999",
+  "agent_id": "art43-agent",
+  "session_id": "S43",
+  "timestamp": "2026-08-07T10:00:00Z",
+  "event_type": "HARNESS_SNAPSHOT",
+  "cynefin_domain": "CLEAR",
+  "payload": {
+    "autonomy": {
+      "human_in_loop": true,
+      "max_delegation_depth": 3
+    },
+    "harness_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "mcp_servers": [
+      {
+        "name": "gitnexus",
+        "transport": "stdio",
+        "version": "1.0.0"
+      }
+    ],
+    "model_bindings": [
+      {
+        "model": "claude-opus-5",
+        "params_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "provider": "anthropic",
+        "role": "planner"
+      }
+    ],
+    "prompt_hashes": {
+      "system": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "sdk": {
+      "name": "trustlayer-go",
+      "version": "0.1.0"
+    },
+    "tools": [
+      {
+        "capabilities": [
+          "payments"
+        ],
+        "name": "payments.transfer",
+        "trust_tier": "privileged",
+        "version": "1.4.0"
+      },
+      {
+        "capabilities": [
+          "net.egress"
+        ],
+        "name": "web.fetch",
+        "trust_tier": "untrusted",
+        "version": "0.9.1"
+      }
+    ]
+  },
+  "metrics": {}
+}

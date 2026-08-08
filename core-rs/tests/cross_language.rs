@@ -271,3 +271,88 @@ fn new_event_types_serialise_screaming_snake_case() {
         "\"CONTENT_MARKED\""
     );
 }
+
+/// spec §2.10 — the outcome of an escalation, not just the escalation.
+#[test]
+fn parses_human_decision_fixture() {
+    let event = load_fixture("event-human-decision-go.json");
+
+    assert_eq!(event.event_type, EventType::HumanDecision);
+    assert_eq!(
+        event.payload.get("decision").and_then(|v| v.as_str()),
+        Some("APPROVE")
+    );
+    // The pairing key. Without it, escalation→decision would have to be
+    // inferred from ordering, which breaks under concurrency — exactly the
+    // regime agentic systems run in.
+    assert_eq!(
+        event
+            .payload
+            .get("escalation_trace_id")
+            .and_then(|v| v.as_str()),
+        Some("77777777-7777-4777-8777-777777777777")
+    );
+    // Art. 14(4) needs an identified natural person behind the decision.
+    assert!(event
+        .payload
+        .get("reviewer_id")
+        .and_then(|v| v.as_str())
+        .is_some_and(|id| !id.is_empty()));
+    // The number Art. 14 effectiveness is measured on.
+    assert_eq!(event.metrics.latency_ms, Some(41200.0));
+}
+
+/// spec §2.11 — the configuration a session ran under.
+#[test]
+fn parses_harness_snapshot_fixture() {
+    let event = load_fixture("event-harness-snapshot-go.json");
+
+    assert_eq!(event.event_type, EventType::HarnessSnapshot);
+    assert!(event
+        .payload
+        .get("harness_hash")
+        .and_then(|v| v.as_str())
+        .is_some_and(|h| h.starts_with("sha256:")));
+
+    // The trust lattice must survive the round trip; it is what makes
+    // untrusted-to-privileged flow detectable at all.
+    let tools = event
+        .payload
+        .get("tools")
+        .and_then(|v| v.as_array())
+        .expect("tools array");
+    let tiers: Vec<&str> = tools
+        .iter()
+        .filter_map(|t| t.get("trust_tier").and_then(|v| v.as_str()))
+        .collect();
+    assert!(tiers.contains(&"privileged"), "{tiers:?}");
+    assert!(tiers.contains(&"untrusted"), "{tiers:?}");
+}
+
+/// The snapshot must never carry prompt text (spec §2.11, principle P7).
+///
+/// A system prompt is a trade secret and frequently contains customer data.
+/// Change detection only needs to know that it changed, and a fixture that
+/// leaked one would be copied by every integrator who read it.
+#[test]
+fn harness_snapshot_carries_prompt_hashes_not_prompt_text() {
+    let event = load_fixture("event-harness-snapshot-go.json");
+
+    let hashes = event
+        .payload
+        .get("prompt_hashes")
+        .and_then(|v| v.as_object())
+        .expect("prompt_hashes object");
+    assert!(!hashes.is_empty());
+    for (key, value) in hashes {
+        let text = value.as_str().unwrap_or_default();
+        assert!(
+            text.starts_with("sha256:"),
+            "prompt_hashes.{key} is not a hash: {text:?}"
+        );
+    }
+    assert!(
+        event.payload.get("prompts").is_none() && event.payload.get("system_prompt").is_none(),
+        "the snapshot must not carry prompt text"
+    );
+}

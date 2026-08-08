@@ -74,10 +74,11 @@ The reference implementations enforce this with Pydantic
 
 ### `event_type` — REQUIRED
 
-- One of the nine values defined in [§2](./02-event-types.md):
+- One of the eleven values defined in [§2](./02-event-types.md):
   `AGENT_START`, `TOOL_CALL`, `TOOL_RESULT`, `LLM_CALL`,
   `POLICY_CHECK`, `HUMAN_ESCALATION`, `AGENT_END`,
-  `DISCLOSURE_SHOWN`, `CONTENT_MARKED`.
+  `DISCLOSURE_SHOWN`, `CONTENT_MARKED`, `HUMAN_DECISION`,
+  `HARNESS_SNAPSHOT`.
 - Values MUST be encoded in `SCREAMING_SNAKE_CASE`.
 
 ### `cynefin_domain` — OPTIONAL (default `DISORDER`)

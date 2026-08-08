@@ -1,0 +1,17 @@
+{
+  "trace_id": "88888888-8888-4888-8888-888888888888",
+  "agent_id": "art14-agent",
+  "session_id": "S14",
+  "timestamp": "2026-08-07T10:02:00Z",
+  "event_type": "HUMAN_DECISION",
+  "cynefin_domain": "COMPLICATED",
+  "payload": {
+    "decision": "APPROVE",
+    "escalation_trace_id": "77777777-7777-4777-8777-777777777777",
+    "rationale": "Amount within delegated authority; vendor previously verified.",
+    "reviewer_id": "reviewer-7f3a"
+  },
+  "metrics": {
+    "latency_ms": 41200
+  }
+}

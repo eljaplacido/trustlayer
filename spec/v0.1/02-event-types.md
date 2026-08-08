@@ -3,7 +3,7 @@
 **Status:** Normative.
 
 The `event_type` field selects which payload contract applies. This
-section defines the nine event types and the payload keys an
+section defines the eleven event types and the payload keys an
 implementation MUST emit when applicable, plus the keys it SHOULD
 recognize on the receive side.
 
@@ -20,6 +20,8 @@ The full `event_type` enum:
 | `AGENT_END` | [§2.7](#27-agent_end) |
 | `DISCLOSURE_SHOWN` | [§2.8](#28-disclosure_shown) |
 | `CONTENT_MARKED` | [§2.9](#29-content_marked) |
+| `HUMAN_DECISION` | [§2.10](#210-human_decision) |
+| `HARNESS_SNAPSHOT` | [§2.11](#211-harness_snapshot) |
 
 All values MUST be encoded in `SCREAMING_SNAKE_CASE` (§1.3).
 
@@ -224,7 +226,99 @@ claim as confirmation that a marking is present in the artifact.
 
 ---
 
-## 2.10 Forward compatibility (informative)
+## 2.10 `HUMAN_DECISION`
+
+**Status:** Normative.
+
+Records the **outcome** of a human escalation. Introduced to close the
+Art. 14 loop: `HUMAN_ESCALATION` (§2.6) says a human was asked, and
+nothing in v0.1 said what they answered. An escalation nobody acted on
+is worse evidence than no escalation at all, because it shows the
+oversight mechanism exists and is ignored.
+
+```json
+{
+  "escalation_trace_id": "<uuid>",
+  "decision": "APPROVE | REJECT | MODIFY",
+  "reviewer_id": "string",
+  "rationale": "string",
+  "modified_args": { }
+}
+```
+
+- `escalation_trace_id` — REQUIRED. The `trace_id` of the
+  `HUMAN_ESCALATION` this resolves. Without it the pairing would have to
+  be inferred from ordering, which breaks under concurrency — precisely
+  the regime agentic systems operate in.
+- `decision` — REQUIRED. Implementations SHOULD use one of the listed
+  values.
+- `reviewer_id` — REQUIRED. Art. 14(4) assigns oversight to identified
+  natural persons; a decision with no identified reviewer does not
+  evidence that assignment. Emitters SHOULD use a stable pseudonymous
+  identifier rather than a name, so the record is usable without
+  disclosing personal data by default.
+- `rationale` — RECOMMENDED. A decision with no reasoning is difficult
+  to distinguish from a rubber stamp.
+- `modified_args` — OPTIONAL. Present when `decision` is `MODIFY`.
+
+`metrics.latency_ms` SHOULD carry the time from escalation to decision.
+That is the number Art. 14 effectiveness is actually measured on.
+
+Receivers MUST NOT infer approval from the absence of this event. An
+unresolved escalation is unresolved.
+
+---
+
+## 2.11 `HARNESS_SNAPSHOT`
+
+**Status:** Normative.
+
+Fingerprints the configuration a session ran under. Emitted at most once
+per session, adjacent to `AGENT_START`.
+
+An agentic system's behaviour is determined as much by its harness — the
+model bound to each role, the tools exposed, the system prompt — as by
+its code. None of that appears in a conventional change log, so without
+this event Art. 43 substantial-modification detection has nothing to
+compare across runs.
+
+```json
+{
+  "harness_hash": "sha256:…",
+  "model_bindings": [
+    {"role": "planner", "model": "…", "provider": "…", "params_hash": "sha256:…"}
+  ],
+  "tools": [
+    {"name": "…", "version": "…", "trust_tier": "untrusted | internal | privileged",
+     "capabilities": ["net.egress"]}
+  ],
+  "mcp_servers": [{"name": "…", "version": "…", "transport": "stdio"}],
+  "prompt_hashes": {"system": "sha256:…"},
+  "autonomy": {"max_delegation_depth": 3, "human_in_loop": true},
+  "sdk": {"name": "trustlayer-python", "version": "0.1.0"}
+}
+```
+
+- `harness_hash` — REQUIRED. A hash over the normalised snapshot. Two
+  sessions with the same value ran the same configuration.
+- Every other field is OPTIONAL. A partial snapshot is more useful than
+  none, and emitters SHOULD send what they can determine.
+- `prompt_hashes` carries **hashes, never prompt text**. System prompts
+  are trade secrets and frequently contain customer data; a hash proves
+  "this changed" without disclosing what it says, which is the property
+  substantial-modification detection needs.
+- `trust_tier` classifies a tool's privilege. Receivers MAY use it to
+  detect untrusted-to-privileged flow, and MUST report any such finding
+  as a heuristic requiring review — causal adjacency is not data-flow
+  analysis.
+
+Receivers MUST NOT treat a `HARNESS_SNAPSHOT` as attestation. It records
+what the emitter says it was configured with; nothing here verifies that
+claim against the running process.
+
+---
+
+## 2.12 Forward compatibility (informative)
 
 A future `MINOR` may add new `event_type` values. Receivers that do
 not recognize a value MUST treat the envelope as valid and SHOULD

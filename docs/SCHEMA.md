@@ -29,7 +29,7 @@ The envelope for every event emitted by an agent.
   "agent_id": "string",
   "session_id": "string",
   "timestamp": "ISO-8601 with offset (e.g. 2026-05-12T09:00:00+00:00)",
-  "event_type": "AGENT_START | TOOL_CALL | TOOL_RESULT | LLM_CALL | POLICY_CHECK | HUMAN_ESCALATION | AGENT_END | DISCLOSURE_SHOWN | CONTENT_MARKED",
+  "event_type": "AGENT_START | TOOL_CALL | TOOL_RESULT | LLM_CALL | POLICY_CHECK | HUMAN_ESCALATION | AGENT_END | DISCLOSURE_SHOWN | CONTENT_MARKED | HUMAN_DECISION | HARNESS_SNAPSHOT",
   "cynefin_domain": "CLEAR | COMPLICATED | COMPLEX | CHAOTIC | DISORDER",
   "payload": { /* event-specific, see below */ },
   "metrics": {
@@ -136,6 +136,50 @@ manipulated, per Art. 50(2). One event per marked artifact.
 Without a `verification` object this event records a **claim** that the
 content was marked. Receivers must not treat the claim as confirmation
 that a marking is present in the artifact.
+
+### `HUMAN_DECISION`
+The **outcome** of a human escalation, closing the Art. 14 loop.
+`HUMAN_ESCALATION` says a human was asked; nothing in v0.1 said what they
+answered. An escalation nobody acted on is worse evidence than none — it
+shows the mechanism exists and is ignored.
+```json
+{
+  "escalation_trace_id": "<uuid>",     // required — the escalation this resolves
+  "decision": "APPROVE | REJECT | MODIFY",
+  "reviewer_id": "string",             // required — Art. 14(4) identified person
+  "rationale": "string",               // recommended
+  "modified_args": {}                  // optional, when decision == MODIFY
+}
+```
+Pair on `escalation_trace_id`, never on ordering — ordering breaks under
+concurrency, which is the regime agentic systems operate in. Put the
+escalation→decision gap in `metrics.latency_ms`; that is the number Art. 14
+effectiveness is measured on. Absence of this event is **not** approval.
+
+### `HARNESS_SNAPSHOT`
+Fingerprints the configuration a session ran under, emitted once per
+session next to `AGENT_START`. An agent's behaviour is determined as much
+by its harness — model bindings, tool inventory, system prompt — as by its
+code, and none of that shows up in a conventional change log. Without it,
+Art. 43 substantial-modification detection has nothing to diff.
+```json
+{
+  "harness_hash": "sha256:…",          // required
+  "model_bindings": [{"role": "planner", "model": "…", "provider": "…", "params_hash": "…"}],
+  "tools": [{"name": "…", "version": "…", "trust_tier": "untrusted | internal | privileged",
+             "capabilities": ["net.egress"]}],
+  "mcp_servers": [{"name": "…", "version": "…", "transport": "stdio"}],
+  "prompt_hashes": {"system": "sha256:…"},
+  "autonomy": {"max_delegation_depth": 3, "human_in_loop": true},
+  "sdk": {"name": "trustlayer-python", "version": "0.1.0"}
+}
+```
+**Prompt hashes, never prompt text.** System prompts are trade secrets and
+often contain customer data; a hash proves "this changed" without
+disclosing what it says, which is all that change detection needs.
+
+This is not attestation. It records what the emitter says it was
+configured with; nothing verifies that against the running process.
 
 ## Policy / `MatchSpec`
 

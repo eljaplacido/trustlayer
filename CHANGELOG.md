@@ -132,6 +132,41 @@ classes — an agentic system's most sensitive store is usually its own
 telemetry, and the enum had nowhere honest to put it. Additive, so no existing
 registry breaks.
 
+**Slice 8.3 (partial) — agentic trust model event types (ADR-019).** Two new
+event types, additive and MINOR per spec §1.7. The v0.1 set is now **eleven**.
+
+- **`HUMAN_DECISION`** (spec §2.10) closes the Art. 14 loop. `HUMAN_ESCALATION`
+  said a human was asked; nothing said what they answered, so oversight could
+  only ever be a presence check. This was not optional to defer: Slice 8.2
+  shipped a `resolution` predicate pairing escalations with decisions, and
+  until now no SDK could emit the second half — the predicate was expressible
+  and unusable.
+  - `escalation_trace_id` is REQUIRED rather than inferred from ordering.
+    Ordering looks adequate in a test and breaks under concurrency, which is
+    the regime agentic systems run in.
+  - `reviewer_id` is REQUIRED: Art. 14(4) assigns oversight to identified
+    natural persons, and emitters SHOULD use a stable pseudonym rather than a
+    name. Absence of a decision is **not** approval.
+- **`HARNESS_SNAPSHOT`** (spec §2.11) fingerprints the configuration a session
+  ran under — model bindings, tool inventory with `trust_tier`, MCP servers,
+  prompt hashes, autonomy limits. An agent's behaviour is set as much by its
+  harness as by its code, and none of that appears in a conventional change
+  log, so Art. 43 substantial-modification detection had nothing to diff.
+  - **Prompt hashes, never prompt text.** A system prompt is a trade secret and
+    often carries customer data; a hash proves "this changed" without
+    disclosing what it says. A cross-language test enforces this against the
+    committed fixture, because fixtures get copied by integrators.
+  - Not attestation: it records what the emitter says it was configured with.
+
+Landed across every layer in one commit per the lockstep rule G0 taught —
+`core-rs`, all four SDKs, `control.schema.json`, spec §1.3/§2/§6,
+`docs/SCHEMA.md`, two Go-generated fixtures, and cross-language assertions.
+
+**Still open in ADR-019**, stated rather than left to be discovered:
+`parent_trace_id` (the only envelope change in Phase 8), the derived workflow
+graph, and untrusted-to-privileged flow detection. The `trust_tier` vocabulary
+ships in the wire format; the detector that consumes it does not exist yet.
+
 ### Changed (Phase 8)
 - **`TRUSTLAYER_EVENT_RETENTION_MAX` no longer deletes.** It was a hard cap
   that evicted the oldest events on overflow, which could destroy logs Art. 12

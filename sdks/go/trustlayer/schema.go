@@ -18,27 +18,31 @@ const SchemaVersion = "0.1"
 type EventType string
 
 const (
-	EventAgentStart        EventType = "AGENT_START"
-	EventToolCall          EventType = "TOOL_CALL"
-	EventToolResult        EventType = "TOOL_RESULT"
-	EventLLMCall           EventType = "LLM_CALL"
-	EventPolicyCheck       EventType = "POLICY_CHECK"
-	EventHumanEscalation   EventType = "HUMAN_ESCALATION"
-	EventAgentEnd          EventType = "AGENT_END"
-	EventDisclosureShown   EventType = "DISCLOSURE_SHOWN"
-	EventContentMarked     EventType = "CONTENT_MARKED"
+	EventAgentStart      EventType = "AGENT_START"
+	EventToolCall        EventType = "TOOL_CALL"
+	EventToolResult      EventType = "TOOL_RESULT"
+	EventLLMCall         EventType = "LLM_CALL"
+	EventPolicyCheck     EventType = "POLICY_CHECK"
+	EventHumanEscalation EventType = "HUMAN_ESCALATION"
+	EventAgentEnd        EventType = "AGENT_END"
+	EventDisclosureShown EventType = "DISCLOSURE_SHOWN"
+	EventContentMarked   EventType = "CONTENT_MARKED"
+	EventHumanDecision   EventType = "HUMAN_DECISION"
+	EventHarnessSnapshot EventType = "HARNESS_SNAPSHOT"
 )
 
 var validEventTypes = map[EventType]struct{}{
-	EventAgentStart:        {},
-	EventToolCall:          {},
-	EventToolResult:        {},
-	EventLLMCall:           {},
-	EventPolicyCheck:       {},
-	EventHumanEscalation:   {},
-	EventAgentEnd:          {},
-	EventDisclosureShown:   {},
-	EventContentMarked:     {},
+	EventAgentStart:      {},
+	EventToolCall:        {},
+	EventToolResult:      {},
+	EventLLMCall:         {},
+	EventPolicyCheck:     {},
+	EventHumanEscalation: {},
+	EventAgentEnd:        {},
+	EventDisclosureShown: {},
+	EventContentMarked:   {},
+	EventHumanDecision:   {},
+	EventHarnessSnapshot: {},
 }
 
 // UnmarshalJSON rejects unknown enum values to enforce W4 conformance.

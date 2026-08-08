@@ -23,6 +23,8 @@ pub enum EventType {
     AgentEnd,
     DisclosureShown,
     ContentMarked,
+    HumanDecision,
+    HarnessSnapshot,
 }
 
 /// Cynefin classification of the decision context.

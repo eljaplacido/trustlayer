@@ -277,7 +277,17 @@ closes named ones.
     (ADR-018 §5) is not built — the engine materialises the event list, which
     is correct at current volumes and a real limit at scale. `scope`/`window`
     are rejected by validation rather than silently ignored.
-- [ ] Slice 8.3 — agentic trust model (ADR-019, G7/G8/G10)
+- [~] **Slice 8.3 (partial) — agentic trust model (ADR-019).** `HUMAN_DECISION`
+  and `HARNESS_SNAPSHOT` shipped across all five implementations; the v0.1 set
+  is now eleven event types. `HUMAN_DECISION` closes a dependency Slice 8.2
+  created — the `resolution` predicate pairs escalations with decisions, and no
+  SDK could emit the second half until now.
+  - **Open:** `parent_trace_id` (the only envelope change in Phase 8), the
+    derived workflow graph, and untrusted-to-privileged flow detection. The
+    `trust_tier` vocabulary is in the wire format; the detector is not written.
+    Most graph metrics degrade to `unknown` without `parent_trace_id`, so
+    building them first would ship a module whose headline numbers are
+    structurally unavailable.
 - [ ] Slice 8.4 — `evaluators/` package (ADR-020, G11)
 - [ ] Slice 8.5 — Annex IV document model + remediation guidance (ADR-021, G5)
 - [ ] Slice 8.6 — Art. 73 incident pipeline (ADR-022, G6)

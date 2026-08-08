@@ -49,6 +49,8 @@ be enforced by a rule that does not match the same events.
 | `event-canonical-go.json` | `TOOL_CALL` with full metrics | Go SDK | `go run ./examples/conformance canonical > ../../spec/v0.1/fixtures/event-canonical-go.json` |
 | `event-disclosure-shown-go.json` | `DISCLOSURE_SHOWN`, Art. 50(1) (§2.8) | Go SDK | `go run ./examples/conformance disclosure-shown > ../../spec/v0.1/fixtures/event-disclosure-shown-go.json` |
 | `event-content-marked-go.json` | `CONTENT_MARKED` with a `verification` block, Art. 50(2) (§2.9) | Go SDK | `go run ./examples/conformance content-marked > ../../spec/v0.1/fixtures/event-content-marked-go.json` |
+| `event-human-decision-go.json` | `HUMAN_DECISION`, the outcome of an escalation, Art. 14 (§2.10) | Go SDK | `go run ./examples/conformance human-decision > ../../spec/v0.1/fixtures/event-human-decision-go.json` |
+| `event-harness-snapshot-go.json` | `HARNESS_SNAPSHOT`, the configuration a session ran under, Art. 43 (§2.11) | Go SDK | `go run ./examples/conformance harness-snapshot > ../../spec/v0.1/fixtures/event-harness-snapshot-go.json` |
 
 ## Adding a new fixture
 
