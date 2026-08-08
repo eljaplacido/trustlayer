@@ -1,0 +1,198 @@
+{
+  "$comment": [
+    "Shared conformance table for payload predicate evaluation (spec 4.3, ADR-018).",
+    "",
+    "Read by core-rs/tests/predicate_conformance.rs and by",
+    "compliance/tests/test_predicates.py. One table, two implementations: a",
+    "predicate language implemented twice and tested twice is a predicate",
+    "language that will diverge, and divergence between a policy engine and an",
+    "evidence engine means a control can claim to be enforced by a rule that",
+    "does not actually match the same events.",
+    "",
+    "`actual` is omitted entirely when the dotted path does not resolve. That",
+    "is distinct from `actual: null`, which is a path that resolves to JSON",
+    "null — the difference is exactly what $exists tests."
+  ],
+  "cases": [
+    {
+      "name": "literal string equality",
+      "actual": "shell",
+      "expected": "shell",
+      "matches": true
+    },
+    {
+      "name": "literal string inequality",
+      "actual": "shell",
+      "expected": "bash",
+      "matches": false
+    },
+    {
+      "name": "literal deep equality on objects",
+      "actual": { "a": [1, 2] },
+      "expected": { "a": [1, 2] },
+      "matches": true
+    },
+    {
+      "name": "missing path never matches a literal",
+      "expected": "shell",
+      "matches": false
+    },
+    {
+      "name": "object literal without dollar keys stays a literal",
+      "actual": { "in": [1] },
+      "expected": { "in": [1] },
+      "matches": true
+    },
+    {
+      "name": "empty object is a literal not an operator",
+      "actual": {},
+      "expected": {},
+      "matches": true
+    },
+    { "name": "$eq holds", "actual": "a", "expected": { "$eq": "a" }, "matches": true },
+    { "name": "$eq fails", "actual": "a", "expected": { "$eq": "b" }, "matches": false },
+    { "name": "$ne holds", "actual": "a", "expected": { "$ne": "b" }, "matches": true },
+    { "name": "$ne fails", "actual": "a", "expected": { "$ne": "a" }, "matches": false },
+    {
+      "name": "$ne holds for a missing path so a negative can be asserted",
+      "expected": { "$ne": "restricted" },
+      "matches": true
+    },
+    { "name": "$in holds", "actual": "b", "expected": { "$in": ["a", "b"] }, "matches": true },
+    { "name": "$in fails", "actual": "c", "expected": { "$in": ["a", "b"] }, "matches": false },
+    {
+      "name": "$in does not match a missing path",
+      "expected": { "$in": ["a"] },
+      "matches": false
+    },
+    { "name": "$nin holds", "actual": "c", "expected": { "$nin": ["a", "b"] }, "matches": true },
+    { "name": "$nin fails", "actual": "a", "expected": { "$nin": ["a", "b"] }, "matches": false },
+    { "name": "$gt holds", "actual": 10, "expected": { "$gt": 5 }, "matches": true },
+    { "name": "$gt is strict", "actual": 5, "expected": { "$gt": 5 }, "matches": false },
+    { "name": "$gte holds at the boundary", "actual": 5, "expected": { "$gte": 5 }, "matches": true },
+    { "name": "$lt holds", "actual": 4.5, "expected": { "$lt": 5 }, "matches": true },
+    { "name": "$lte holds at the boundary", "actual": 5, "expected": { "$lte": 5 }, "matches": true },
+    {
+      "name": "numeric comparison does not coerce strings",
+      "actual": "12",
+      "expected": { "$gt": 5 },
+      "matches": false
+    },
+    {
+      "name": "numeric comparison does not treat booleans as numbers",
+      "actual": true,
+      "expected": { "$gt": 0 },
+      "matches": false
+    },
+    {
+      "name": "$exists true for a path resolving to null",
+      "actual": null,
+      "expected": { "$exists": true },
+      "matches": true
+    },
+    {
+      "name": "$exists true fails for a missing path",
+      "expected": { "$exists": true },
+      "matches": false
+    },
+    {
+      "name": "$exists false holds for a missing path",
+      "expected": { "$exists": false },
+      "matches": true
+    },
+    {
+      "name": "$exists false fails for a present path",
+      "actual": "x",
+      "expected": { "$exists": false },
+      "matches": false
+    },
+    {
+      "name": "$prefix holds",
+      "actual": "restricted.delete",
+      "expected": { "$prefix": "restricted." },
+      "matches": true
+    },
+    {
+      "name": "$prefix fails",
+      "actual": "safe.delete",
+      "expected": { "$prefix": "restricted." },
+      "matches": false
+    },
+    {
+      "name": "$suffix holds",
+      "actual": "payments.transfer",
+      "expected": { "$suffix": ".transfer" },
+      "matches": true
+    },
+    {
+      "name": "$contains substring",
+      "actual": "hello world",
+      "expected": { "$contains": "lo wo" },
+      "matches": true
+    },
+    {
+      "name": "$contains substring absent",
+      "actual": "hello",
+      "expected": { "$contains": "xyz" },
+      "matches": false
+    },
+    {
+      "name": "$contains array membership",
+      "actual": ["a", "b"],
+      "expected": { "$contains": "b" },
+      "matches": true
+    },
+    {
+      "name": "$contains array membership absent",
+      "actual": ["a"],
+      "expected": { "$contains": "b" },
+      "matches": false
+    },
+    {
+      "name": "multiple operators are ANDed and hold",
+      "actual": 5,
+      "expected": { "$gte": 1, "$lte": 10 },
+      "matches": true
+    },
+    {
+      "name": "multiple operators are ANDed and fail above",
+      "actual": 11,
+      "expected": { "$gte": 1, "$lte": 10 },
+      "matches": false
+    },
+    {
+      "name": "multiple operators are ANDed and fail below",
+      "actual": 0,
+      "expected": { "$gte": 1, "$lte": 10 },
+      "matches": false
+    },
+    {
+      "name": "an unknown operator never matches",
+      "actual": "x",
+      "expected": { "$nope": "x" },
+      "matches": false
+    }
+  ],
+  "validation_cases": [
+    { "name": "plain literal", "expected": "literal", "valid": true },
+    { "name": "numeric literal", "expected": 42, "valid": true },
+    { "name": "object literal", "expected": { "nested": "literal" }, "valid": true },
+    { "name": "single operator", "expected": { "$in": ["a"] }, "valid": true },
+    { "name": "range", "expected": { "$gte": 1, "$lte": 10 }, "valid": true },
+    { "name": "exists", "expected": { "$exists": false }, "valid": true },
+    {
+      "name": "mixed operator and literal keys is rejected",
+      "expected": { "$gt": 5, "unit": "ms" },
+      "valid": false
+    },
+    {
+      "name": "unknown operator is rejected",
+      "expected": { "$regex": "a.*" },
+      "valid": false
+    },
+    { "name": "$in needs an array", "expected": { "$in": "not-an-array" }, "valid": false },
+    { "name": "$gt needs a number", "expected": { "$gt": "not-a-number" }, "valid": false },
+    { "name": "$exists needs a boolean", "expected": { "$exists": "yes" }, "valid": false },
+    { "name": "$prefix needs a string", "expected": { "$prefix": 5 }, "valid": false }
+  ]
+}

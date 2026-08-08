@@ -95,8 +95,34 @@ pub fn resolve_path<'a>(
 
 impl Policy {
     /// Parse a policy from JSON bytes.
+    ///
+    /// Payload predicates are validated here rather than at evaluation time. A
+    /// malformed predicate — a mixed operator/literal object, an unknown
+    /// operator, an operand of the wrong type — would otherwise simply never
+    /// match, and a rule that never fires is a rule nobody notices is broken
+    /// until it fails to block something.
     pub fn from_json(bytes: &[u8]) -> crate::Result<Self> {
-        serde_json::from_slice(bytes).map_err(crate::Error::InvalidPolicy)
+        let policy: Policy = serde_json::from_slice(bytes).map_err(crate::Error::InvalidPolicy)?;
+        policy.validate()?;
+        Ok(policy)
+    }
+
+    /// Check every payload predicate in the policy.
+    pub fn validate(&self) -> crate::Result<()> {
+        for rule in &self.rules {
+            let Some(ref predicates) = rule.selector.payload else {
+                continue;
+            };
+            for (path, expected) in predicates {
+                if let Some(reason) = crate::predicate::validate_predicate(path, expected) {
+                    return Err(crate::Error::InvalidPolicyRule {
+                        rule: rule.name.clone(),
+                        reason,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Read a policy from a JSON file on disk.

@@ -15,6 +15,7 @@ use arc_swap::ArcSwap;
 use serde::Serialize;
 
 use crate::policy::{resolve_path, MatchSpec, Policy};
+use crate::predicate::matches_predicate;
 use crate::schema::{AgentTraceEvent, CynefinDomain, Decision};
 
 /// The guardian's adjudication for one event.
@@ -107,12 +108,12 @@ fn matches_event(selector: &MatchSpec, event: &AgentTraceEvent) -> bool {
         }
     }
     if let Some(ref predicates) = selector.payload {
-        // ADR-008: every dotted path must resolve to a value deep-equal to the
-        // expected JSON literal. Missing paths never match.
+        // ADR-008 deep equality, extended by ADR-018 with `$`-prefixed
+        // operators. A literal keeps its v0.1 meaning exactly, so every policy
+        // written before operators existed still means what it meant.
         for (path, expected) in predicates {
-            match resolve_path(&event.payload, path) {
-                Some(actual) if actual == expected => continue,
-                _ => return false,
+            if !matches_predicate(resolve_path(&event.payload, path), expected) {
+                return false;
             }
         }
     }

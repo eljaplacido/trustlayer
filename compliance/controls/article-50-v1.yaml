@@ -17,6 +17,9 @@ articles:
     risk_classes: [high-risk, limited-risk]
     controls:
       - id: art-50.1.1
+        applies_to_roles: [provider]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(1)'
         title: "Disclosure of AI interaction"
         description: |
           Is the natural person being informed that they are interacting with an AI system?
@@ -29,6 +32,9 @@ articles:
         priority: critical
 
       - id: art-50.1.2
+        applies_to_roles: [provider]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(1)'
         title: "Timing of disclosure"
         description: |
           Is the disclosure provided to the natural person before or during the initial
@@ -38,6 +44,9 @@ articles:
         priority: high
 
       - id: art-50.1.3
+        applies_to_roles: [provider]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(1)'
         title: "Clarity and accessibility of disclosure"
         description: |
           Is the disclosure clear, concise, and easily understandable by the natural person?
@@ -54,6 +63,9 @@ articles:
     risk_classes: [high-risk, limited-risk]
     controls:
       - id: art-50.2.1
+        applies_to_roles: [deployer]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(3)'
         title: "Notification of emotion recognition"
         description: |
           Are natural persons being informed when emotion recognition is being performed?
@@ -66,6 +78,9 @@ articles:
         priority: critical
 
       - id: art-50.2.2
+        applies_to_roles: [deployer]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(3)'
         title: "Notification of biometric categorisation"
         description: |
           Are natural persons being informed when biometric categorisation is being performed?
@@ -78,6 +93,9 @@ articles:
         priority: critical
 
       - id: art-50.2.3
+        applies_to_roles: [deployer]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(3)'
         title: "Consent mechanism"
         description: |
           Is appropriate consent obtained from natural persons, unless otherwise provided by
@@ -99,6 +117,9 @@ articles:
     risk_classes: [high-risk, limited-risk]
     controls:
       - id: art-50.3.1
+        applies_to_roles: [provider]
+        applies_from: '2026-12-02'
+        legal_ref: 'Art. 50(2)'
         title: "Machine-readable labelling of generated content"
         description: |
           Is the synthetic content artificially and visibly labelled as AI-generated or manipulated?
@@ -110,6 +131,9 @@ articles:
         priority: critical
 
       - id: art-50.3.2
+        applies_to_roles: [deployer]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(4)'
         title: "Deepfake disclosure"
         description: |
           Are deepfakes disclosed with a clear notice that the content has been artificially
@@ -119,6 +143,9 @@ articles:
         priority: critical
 
       - id: art-50.3.3
+        applies_to_roles: [provider]
+        applies_from: '2026-12-02'
+        legal_ref: 'Art. 50(2)'
         title: "Prohibition of undetectable AI content"
         description: |
           Are unobtrusive post or other content elements that render AI-generated content
@@ -128,6 +155,9 @@ articles:
         priority: critical
 
       - id: art-50.3.4
+        applies_to_roles: [deployer]
+        applies_from: '2026-08-02'
+        legal_ref: 'Art. 50(4)'
         title: "Public interest text disclosure"
         description: |
           For AI-generated or manipulated text content that relates to a matter of public

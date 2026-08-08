@@ -4,7 +4,11 @@
   "title": "Control Framework Schema",
   "description": "Schema for defining control frameworks (EU AI Act, internal templates, etc.)",
   "type": "object",
-  "required": ["framework", "version", "articles"],
+  "required": [
+    "framework",
+    "version",
+    "articles"
+  ],
   "properties": {
     "framework": {
       "type": "string",
@@ -23,7 +27,11 @@
       "description": "List of articles/sections in the framework",
       "items": {
         "type": "object",
-        "required": ["id", "title", "controls"],
+        "required": [
+          "id",
+          "title",
+          "controls"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -41,7 +49,12 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["prohibited", "high-risk", "limited-risk", "minimal-risk"]
+              "enum": [
+                "prohibited",
+                "high-risk",
+                "limited-risk",
+                "minimal-risk"
+              ]
             },
             "description": "Which risk classes this article applies to"
           },
@@ -50,7 +63,10 @@
             "description": "Specific controls within this article",
             "items": {
               "type": "object",
-              "required": ["id", "title"],
+              "required": [
+                "id",
+                "title"
+              ],
               "properties": {
                 "id": {
                   "type": "string",
@@ -79,16 +95,136 @@
                       "type": "array",
                       "items": {
                         "type": "string",
-                        "enum": ["AGENT_START", "TOOL_CALL", "TOOL_RESULT", "LLM_CALL", "POLICY_CHECK", "HUMAN_ESCALATION", "AGENT_END", "DISCLOSURE_SHOWN", "CONTENT_MARKED"]
+                        "enum": [
+                          "AGENT_START",
+                          "TOOL_CALL",
+                          "TOOL_RESULT",
+                          "LLM_CALL",
+                          "POLICY_CHECK",
+                          "HUMAN_ESCALATION",
+                          "AGENT_END",
+                          "DISCLOSURE_SHOWN",
+                          "CONTENT_MARKED"
+                        ]
                       }
                     },
                     "payload_filters": {
                       "type": "object",
-                      "description": "Filters on event payload (e.g., {'result': 'FAIL'})"
+                      "description": "DEPRECATED alias for `where`, retained so v1 catalogs keep working. It lowers to `where` rather than being evaluated separately, so there is exactly one code path. Removal target: v0.3."
                     },
                     "min_count": {
                       "type": "integer",
                       "description": "Minimum number of matching events required"
+                    },
+                    "where": {
+                      "$ref": "#/$defs/where"
+                    },
+                    "coverage": {
+                      "type": "object",
+                      "description": "The proportion of a population that is covered \u2014 the number an auditor actually asks for. An empty population is reported as INDETERMINATE, never as 100%: a system that emitted no risky calls would otherwise look perfectly governed.",
+                      "required": [
+                        "of"
+                      ],
+                      "properties": {
+                        "of": {
+                          "$ref": "#/$defs/match_spec"
+                        },
+                        "satisfied_by": {
+                          "type": "object"
+                        },
+                        "min_ratio": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "default": 1
+                        }
+                      }
+                    },
+                    "sequence": {
+                      "type": "array",
+                      "description": "Ordered temporal predicate: every event matching `match` must have the predecessor `requires_preceding` describes. This is how Art. 15's real question \u2014 was *every* risky action gated? \u2014 is expressed.",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "match"
+                        ],
+                        "properties": {
+                          "match": {
+                            "$ref": "#/$defs/match_spec"
+                          },
+                          "requires_preceding": {
+                            "type": "object",
+                            "properties": {
+                              "match": {
+                                "$ref": "#/$defs/match_spec"
+                              },
+                              "within": {
+                                "type": "string",
+                                "description": "Duration, e.g. '5s', '24h', '90d'."
+                              },
+                              "same_session": {
+                                "type": "boolean",
+                                "default": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "absence": {
+                      "type": "object",
+                      "description": "Negative assertion: no event may match. Satisfied over an empty stream, because 'no events at all' genuinely satisfies 'none of this kind happened'; over-claiming from an empty log is prevented at the tier level.",
+                      "properties": {
+                        "event_type": {
+                          "type": "string"
+                        },
+                        "event_types": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "where": {
+                          "$ref": "#/$defs/where"
+                        }
+                      }
+                    },
+                    "resolution": {
+                      "type": "object",
+                      "description": "Did escalations actually close, and inside the deadline? An escalation nobody acted on is worse evidence than no escalation, because it shows the mechanism exists and is ignored.",
+                      "required": [
+                        "opens_with"
+                      ],
+                      "properties": {
+                        "opens_with": {
+                          "$ref": "#/$defs/match_spec"
+                        },
+                        "closes_with": {
+                          "$ref": "#/$defs/match_spec"
+                        },
+                        "within": {
+                          "type": "string"
+                        },
+                        "min_ratio": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "default": 1
+                        }
+                      }
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "session",
+                        "system",
+                        "window"
+                      ],
+                      "default": "system"
+                    },
+                    "window": {
+                      "type": "string",
+                      "description": "Required when scope is 'window'. Duration, e.g. '90d'."
                     }
                   }
                 },
@@ -99,12 +235,77 @@
                 },
                 "priority": {
                   "type": "string",
-                  "enum": ["critical", "high", "medium", "low"],
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low"
+                  ],
                   "description": "Priority level for gap analysis"
+                },
+                "applies_to_roles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "provider",
+                      "deployer",
+                      "importer",
+                      "distributor"
+                    ]
+                  },
+                  "description": "Roles this control binds. Omitted means every role. Present so a deployer is never scored against provider obligations (gap G9) \u2014 the engine reports such controls as not-applicable rather than as failures."
+                },
+                "risk_classes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "prohibited",
+                      "high-risk",
+                      "limited-risk",
+                      "minimal-risk"
+                    ]
+                  },
+                  "description": "Risk classes this control binds. Omitted means every class."
+                },
+                "applies_from": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "ISO date the obligation commences. Encodes the Digital Omnibus timeline as data rather than prose, so the catalog stays correct as dates pass. A control not yet in force is reported separately, never as a gap to fix today."
+                },
+                "legal_ref": {
+                  "type": "string",
+                  "description": "Citation, e.g. 'Art. 50(2)'. Lets a reader check the claim rather than trust it."
                 }
               }
             }
           }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "where": {
+      "type": "object",
+      "description": "Dotted-path payload predicates (spec 4.3, extended by ADR-018). A literal means deep equality; an object whose keys all start with $ is an operator expression. One predicate language serves both the policy engine and this one (P6), so a control and the rule enforcing it cannot drift apart.",
+      "additionalProperties": true
+    },
+    "match_spec": {
+      "type": "object",
+      "description": "Selects events by type and payload predicate.",
+      "properties": {
+        "event_type": {
+          "type": "string"
+        },
+        "event_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "where": {
+          "$ref": "#/$defs/where"
         }
       }
     }

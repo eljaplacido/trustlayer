@@ -168,18 +168,31 @@ fn load_fixture(name: &str) -> AgentTraceEvent {
     serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("parse fixture {path}: {e}"))
 }
 
-/// Every committed fixture MUST parse through the strict envelope (W1).
+/// Every committed **event** fixture MUST parse through the strict envelope (W1).
 ///
-/// The fixtures README promises this test loads *every* file in the
-/// directory; globbing rather than naming files is what makes that true,
-/// so a fixture added without a matching assertion still cannot rot.
+/// The fixtures README promises this test loads every event fixture in the
+/// directory; globbing rather than naming files is what makes that true, so a
+/// fixture added without a matching assertion still cannot rot.
+///
+/// Scoped to the `event-` prefix the README defines
+/// (`event-<subject>-<lang>.json`) because the directory also holds conformance
+/// tables that are deliberately not events — `predicate-cases.json` is a shared
+/// table of predicate cases, not an `AgentTraceEvent`, and asserting it against
+/// the envelope tests nothing.
 #[test]
-fn every_committed_fixture_parses() {
+fn every_committed_event_fixture_parses() {
     let dir = "../spec/v0.1/fixtures";
     let mut checked = 0;
     for entry in std::fs::read_dir(dir).expect("read fixtures dir") {
         let path = entry.expect("dir entry").path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let is_event_fixture = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("event-"));
+        if !is_event_fixture {
             continue;
         }
         let bytes = std::fs::read(&path).expect("read fixture");
@@ -190,7 +203,7 @@ fn every_committed_fixture_parses() {
     }
     assert!(
         checked >= 3,
-        "expected at least 3 fixtures, found {checked}"
+        "expected at least 3 event fixtures, found {checked}"
     );
 }
 

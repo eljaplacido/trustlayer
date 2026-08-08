@@ -38,14 +38,14 @@ system:
     # why data minimisation and an egress policy are P7 rather than a
     # nice-to-have: the store is the most sensitive component in the system.
     #
-    # Both entries are classified by what a trace *may* contain, not by what
-    # TrustLayer intends to collect. A store that declares only what it meant
-    # to hold is the reason trace logs turn into data-protection incidents.
+    # Classified by what a trace *may* contain, not by what TrustLayer intends
+    # to collect. A store that declares only what it meant to hold is the
+    # reason trace logs turn into data-protection incidents.
     #
-    # Known limitation, found by running this scan: `system.schema.json` has
-    # no category for agent trace data specifically, so this is the nearest
-    # honest mapping rather than an exact one. Tracked for the schema revision
-    # in Slice 8.2 (ADR-018), which adds role and data filtering.
+    # `agent_trace_data` and `model_io_content` were added to the schema in
+    # Slice 8.2 precisely because this scan had nowhere honest to put them.
+    - agent_trace_data
+    - model_io_content
     - personal_data
     - proprietary_data
   approved_use_cases:

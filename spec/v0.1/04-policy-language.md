@@ -111,6 +111,90 @@ This version does not define an escape syntax for payload keys that
 themselves contain a literal `.`. Authoring rules against such keys
 is out of scope for v0.1.
 
+## 4.3.1 Comparison operators (extension, ADR-018)
+
+Deep equality answers "is it exactly this?" and nothing else. That is
+enough for many policy rules and not enough for an evidence query
+(§5.12, ADR-018), which must express "any of these tools", "longer than
+this", "not set to that". This section adds operators **to the same
+language** so a control and the policy rule enforcing it cannot drift
+apart.
+
+Support is OPTIONAL for a v0.1 conforming implementation. An
+implementation that does not support operators MUST reject a policy
+containing one rather than treat it as a literal — silently comparing an
+operator object by deep equality yields a rule that can never match, and
+a rule that never fires is a rule nobody notices is broken.
+
+**Disambiguation.** An expected value is an operator expression **iff**
+it is a JSON object whose keys **all** begin with `$`. Every other value
+keeps its §4.3 deep-equality meaning, so a policy written before this
+section means exactly what it meant.
+
+An object with *some* `$`-prefixed keys and some plain keys is
+malformed. Implementations MUST reject it at load time.
+
+| Operator | Operand | Matches when |
+|---|---|---|
+| `$eq` | any | the resolved value deep-equals the operand |
+| `$ne` | any | the value differs, **or the path is absent** |
+| `$in` | array | the value deep-equals some element |
+| `$nin` | array | the value equals no element, or the path is absent |
+| `$gt`, `$gte`, `$lt`, `$lte` | number | both sides are numbers and the comparison holds |
+| `$exists` | boolean | the path resolved (`true`) or did not (`false`) |
+| `$contains` | any | a string value contains the operand substring, or an array value contains the operand element |
+| `$prefix`, `$suffix` | string | a string value starts/ends with the operand |
+
+Normative details:
+
+- Operators within one object AND together, matching how `MatchSpec`
+  already ANDs its fields.
+- An absent path fails every operator **except** `$exists: false` and
+  `$ne`/`$nin`. Asserting that an absent field differs from a value is
+  true, and is how a control expresses "this must not be set to X".
+- `$exists: true` MUST match a path that resolves to JSON `null`. An
+  absent key and a present `null` are different facts.
+- Numeric operators MUST NOT coerce. A string `"12"` MUST NOT compare as
+  a number, and a boolean MUST NOT compare as `0`/`1`. Coercion would
+  make the same catalog mean different things in two implementations.
+- Implementations MUST reject an operand of the wrong type at load time
+  (`$in` without an array, `$gt` without a number, `$exists` without a
+  boolean, `$prefix`/`$suffix` without a string).
+- An unrecognised `$` operator MUST be rejected at load time and MUST NOT
+  match at evaluation time.
+
+**There is deliberately no regular-expression operator.** `$prefix` and
+`$suffix` cover the tool-family patterns catalogs need. A regex engine
+evaluated over a large event stream on behalf of a user-supplied catalog
+is a denial-of-service primitive, and the evidence engine is precisely
+where a catalog meets unbounded data.
+
+### Example (informative)
+
+```json
+{
+  "match": {
+    "event_type": "TOOL_CALL",
+    "payload": {
+      "tool_name": { "$prefix": "payments." },
+      "args.amount": { "$gt": 10000 },
+      "args.dry_run": { "$ne": true }
+    }
+  }
+}
+```
+
+Matches a payments tool call over 10 000 that is not a dry run —
+including calls where `dry_run` is absent entirely.
+
+### Conformance
+
+`spec/v0.1/fixtures/predicate-cases.json` is a normative table of
+evaluation and validation cases. An implementation claiming operator
+support MUST pass it. The reference implementations run it from
+`core-rs/tests/predicate_conformance.rs` and
+`compliance/tests/test_predicates.py`.
+
 ## 4.4 Order
 
 Rules MUST be evaluated in the order they appear in `rules`. The

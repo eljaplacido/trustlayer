@@ -2,7 +2,8 @@
 adr: 18
 title: Evidence Query v2 and Assurance Tiers
 date: 2026-08-02
-status: proposed
+status: accepted
+accepted: 2026-08-07
 ---
 
 # ADR-018 — Evidence Query v2 and Assurance Tiers
@@ -196,3 +197,72 @@ so memory is a function of the query, not of the store.
 - One predicate language means an ADR-008 change now has two consumers.
   The `spec` conformance suite is extended to cover predicate evaluation
   in the evidence engine, not just the policy engine.
+
+## Implementation notes (2026-08-07)
+
+Recorded rather than absorbed silently, in the same spirit as ADR-017 §7.
+
+### The predicate operators are new, and they landed in both engines
+
+§1 said "reuse `MatchSpec`. Do not invent a second predicate language." The
+shipped `MatchSpec` only had dotted-path **deep equality**, so the `{in: […]}`
+and `{eq: …}` forms this ADR's own §2 example uses did not exist anywhere. The
+choice was to add them to one engine or to both.
+
+Adding them only to the evidence side would have violated P6 on the very first
+slice that invokes it, and would have recreated gap G0 one layer up: a control
+asserting it is enforced by a policy rule, where the two match different sets
+of events. So the operators landed in **both** — `core-rs/src/predicate.rs` and
+`compliance/src/predicates.py` — behind one normative spec section (§4.3.1) and
+one shared conformance table
+(`spec/v0.1/fixtures/predicate-cases.json`), which both suites run.
+
+Three decisions inside that:
+
+- **Operators are `$`-prefixed and an object is an operator expression only
+  when *every* key is prefixed.** Any other value keeps its v0.1 meaning, so no
+  existing policy changes behaviour. A *mixed* object is rejected at load
+  rather than compared literally: `{"$gt": 5, "unit": "ms"}` would otherwise
+  become a predicate that can never match, and a rule that never fires is one
+  nobody notices is broken until it fails to block something.
+- **No regular-expression operator.** `$prefix`/`$suffix` cover the tool-family
+  patterns catalogs actually need. A regex evaluated over a large event stream
+  on behalf of a user-supplied catalog is a denial-of-service primitive, and
+  the evidence engine is exactly where a catalog meets unbounded data.
+- **Policies are validated at load, not at evaluation.** `Policy::from_json`
+  now returns `Error::InvalidPolicyRule` for a malformed predicate. The guardian
+  hot path stays a plain boolean.
+
+### `VERIFIED` needs independent confirmation, and says so
+
+§3 required "evidenced + integrity-checked + independently confirmed". The
+implementation enforces all three, and the middle one asymmetrically: a
+`FAILED` chain pulls a control **down** to `DECLARED` rather than merely
+failing to raise it. A broken chain does not just withhold support, it
+undermines the evidence the claim rests on.
+
+Without the independent-confirmation condition, `VERIFIED` would mean "the
+system said so and its log was not edited", which is not independent of the
+party being assessed. That is stated in the code and in the tier's docstring so
+it cannot be read as stronger than it is.
+
+### The empty-population rule
+
+`coverage` over a zero-size population returns `INDETERMINATE`, never a pass.
+Reporting 100% there is the single most dangerous thing this engine could do: a
+system that emitted no risky calls at all would look perfectly governed. The
+same instinct puts a floor under the tiers — a satisfied query over an empty
+population cannot reach `EVIDENCED`.
+
+### Scope not yet built
+
+- **Streaming evaluation (§5).** The engine still materialises the event list
+  from `GET /v1/events`. `after_seq` exists on the store (ADR-017 §6) and is
+  unused here. Correct at current volumes and a real limit at scale; the
+  bounded-memory sliding window is deferred.
+- **`scope` and `window`.** Present in the schema, not yet honoured by the
+  evaluator — and therefore **rejected by `validate()`** rather than ignored. A
+  query silently evaluated over a wider set than its author asked for produces
+  a compliance answer to a question nobody posed, and the author has no way to
+  tell. A loud error beats a quiet mismatch. Removing the rejection is the
+  first step of implementing them.

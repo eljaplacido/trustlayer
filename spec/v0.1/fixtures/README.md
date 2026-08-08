@@ -29,6 +29,19 @@ language that produced it proves nothing about interoperability — this
 is the rule whose absence produced gap G0 (see `docs/PHASE-8-DESIGN.md`
 §5.3).
 
+The glob is scoped to the `event-` prefix, because this directory also
+holds **conformance tables** that are deliberately not events:
+
+| File | What it is | Read by |
+|---|---|---|
+| `predicate-cases.json` | Shared table of payload-predicate cases (spec §4.3, ADR-018) | `core-rs/tests/predicate_conformance.rs`, `compliance/tests/test_predicates.py` |
+
+A table like this exists for the same reason the event fixtures do. The
+predicate language is implemented twice — once in the Rust policy engine,
+once in the Python evidence engine — and a language implemented twice and
+tested twice will diverge. Divergence there means a control can claim to
+be enforced by a rule that does not match the same events.
+
 ## Current fixtures
 
 | File | Subject | Producer | Reproduce (from `sdks/go/`) |

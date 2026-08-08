@@ -4,11 +4,18 @@
   "title": "AI System Registry Schema",
   "description": "Schema for registering AI systems in the compliance registry",
   "type": "object",
-  "required": ["system"],
+  "required": [
+    "system"
+  ],
   "properties": {
     "system": {
       "type": "object",
-      "required": ["id", "name", "provider_role", "risk_class"],
+      "required": [
+        "id",
+        "name",
+        "provider_role",
+        "risk_class"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -24,12 +31,22 @@
         },
         "provider_role": {
           "type": "string",
-          "enum": ["provider", "deployer", "importer", "distributor"],
+          "enum": [
+            "provider",
+            "deployer",
+            "importer",
+            "distributor"
+          ],
           "description": "Role under EU AI Act (Art. 3)"
         },
         "risk_class": {
           "type": "string",
-          "enum": ["prohibited", "high-risk", "limited-risk", "minimal-risk"],
+          "enum": [
+            "prohibited",
+            "high-risk",
+            "limited-risk",
+            "minimal-risk"
+          ],
           "description": "Risk classification under EU AI Act (Art. 6)"
         },
         "domain": {
@@ -58,7 +75,19 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["personal_data", "sensitive_personal_data", "financial_data", "health_data", "biometric_data", "public_data", "proprietary_data"]
+            "enum": [
+              "personal_data",
+              "sensitive_personal_data",
+              "financial_data",
+              "health_data",
+              "biometric_data",
+              "public_data",
+              "proprietary_data",
+              "agent_trace_data",
+              "model_io_content",
+              "credentials_and_secrets"
+            ],
+            "description": "Categories of data the system processes. Classify by what the system *may* handle, not by what it intends to collect \u2014 a registry that declares only the intended categories is how trace logs become data-protection incidents. `agent_trace_data` and `model_io_content` exist because an agentic system's most sensitive store is usually its own telemetry: prompts, responses and tool arguments captured for Art. 12 evidence."
           },
           "description": "Types of data processed by the system"
         },
@@ -82,7 +111,12 @@
           "properties": {
             "type": {
               "type": "string",
-              "enum": ["human-in-the-loop", "human-on-the-loop", "human-in-command", "none"],
+              "enum": [
+                "human-in-the-loop",
+                "human-on-the-loop",
+                "human-in-command",
+                "none"
+              ],
               "description": "Type of human oversight"
             },
             "approval_points": {
@@ -162,7 +196,7 @@
         },
         "article_50": {
           "type": "object",
-          "description": "EU AI Act Article 50 transparency configuration (optional — required for systems falling under Art. 50 scope)",
+          "description": "EU AI Act Article 50 transparency configuration (optional \u2014 required for systems falling under Art. 50 scope)",
           "properties": {
             "enabled": {
               "type": "boolean",

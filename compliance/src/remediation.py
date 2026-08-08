@@ -325,24 +325,52 @@ def findings_from_readiness(report: dict[str, Any]) -> list[Finding]:
 def findings_from_evidence(report: dict[str, Any]) -> list[Finding]:
     """Extract actionable findings from an evidence-linker compliance report.
 
-    A control with no supporting evidence is a `MISSING` finding. This is where
-    the plan stops being about paperwork: it reports controls the *runtime*
-    could not substantiate.
+    This is where the plan stops being about paperwork: it reports controls the
+    *runtime* could not substantiate.
+
+    Reads schema v2 (`assurance` tiers, ADR-018). A control that is merely
+    `declared` is a finding — that is the entire point of separating the tiers,
+    and treating a declaration as satisfied would reintroduce gap G4 here after
+    removing it upstream.
+
+    Controls that do not apply to the system's role, or that are not yet in
+    force, are skipped: scoring a deployer against provider obligations is
+    noise that hides the obligations that do apply.
     """
+    schema_version = int(report.get("schema_version", 1))
     findings: list[Finding] = []
+
     for control in report.get("controls", []):
-        satisfied = control.get("satisfied")
-        if satisfied is True:
+        if control.get("not_yet_applicable") or control.get("not_applicable_to_role"):
             continue
+
+        if schema_version >= 2:
+            tier = str(control.get("assurance", "unknown"))
+            if tier in ("evidenced", "verified"):
+                continue
+            # `declared` means someone asserted it; `unknown` means nothing did.
+            status = "PARTIAL" if tier == "declared" else "MISSING"
+            detail = str(
+                control.get("gap_reason")
+                or f"assurance tier is '{tier}' — no runtime evidence supports this control"
+            )
+        else:
+            # v1 reports. Kept so an archived report still produces a plan
+            # rather than an empty one, which would read as "nothing to do".
+            if control.get("satisfied") is True:
+                continue
+            status = "PARTIAL" if control.get("evidence_count") else "MISSING"
+            detail = str(
+                control.get("gap_reason")
+                or f"{control.get('evidence_count', 0)} matching events found"
+            )
+
         findings.append(
             Finding(
                 finding_id=str(control.get("control_id", "")),
                 title=str(control.get("control_title", "")),
-                status="PARTIAL" if control.get("evidence_count") else "MISSING",
-                details=str(
-                    control.get("details")
-                    or f"{control.get('evidence_count', 0)} matching events found"
-                ),
+                status=status,
+                details=detail,
                 priority=str(control.get("priority", _DEFAULT_PRIORITY)),
                 source="evidence",
             )

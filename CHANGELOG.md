@@ -74,6 +74,64 @@ with the work that closes them.
 - `--fail-on-blocking` gates CI. Exit 1 while blocking items remain, 2 when the
   requested framework has no catalog.
 
+**Slice 8.2 — evidence query v2 and assurance tiers (ADR-018, closes G3/G4/G9).**
+
+The report used to answer `satisfied: bool` from a presence check, which
+conflated "we wrote it down" with "the runtime proves it" — gap G4, and the
+reason two dogfooded projects both scored 100%.
+
+- **Assurance tiers** replace the boolean: `unknown` → `declared` → `evidenced`
+  → `verified`. **They are never blended into one number.** There is no
+  `satisfaction_rate_percent` in the report and no way to print one; that
+  absence is the feature. `--min-assurance evidenced` gates CI on runtime
+  evidence rather than declarations.
+  - `verified` requires the query to pass, the events to sit in a chain that
+    verifies, **and** an independent confirmation. Without the third condition
+    it would mean "the system said so and its log was not edited", which is not
+    independent of the party being assessed.
+  - A **failed** integrity chain pulls a control *down* to `declared`. A broken
+    chain does not merely withhold support; it undermines the evidence.
+  - A pass over an empty population cannot reach `evidenced`.
+- **Four new predicate forms** (G3): `coverage` (the proportion an auditor
+  actually asks for), `sequence` (was *every* risky call gated?), `absence`
+  (negative assertions), `resolution` (did escalations actually close, and in
+  time?). Coverage over an empty population is `INDETERMINATE`, never 100% — a
+  system that emitted no risky calls would otherwise look perfectly governed.
+- **Role and applicability filtering** (G9). Controls carry `applies_to_roles`,
+  `risk_classes`, `applies_from` and `legal_ref`. `article-50-v1.yaml` now
+  encodes the Digital Omnibus timeline as *data*: Art. 50(1) live from
+  2026-08-02, Art. 50(2) marking deferred to 2026-12-02, and Art. 50(3)/(4)
+  marked as **deployer** duties so a provider is no longer scored against them.
+- **`payload_filters` is deprecated** but unchanged in meaning; it lowers to
+  `where` so there is exactly one code path and a v1 catalog cannot drift from
+  a v2 one. Removal target: v0.3.
+- `scope` and `window` are in the schema but not yet honoured, and are
+  therefore **rejected by validation** rather than ignored. A query silently
+  evaluated over a wider set than asked for answers a question nobody posed.
+
+**Predicate operators, in both engines (spec §4.3.1).** Evidence queries needed
+"any of these tools" and "longer than this", which deep equality cannot say.
+Adding them only to the evidence side would have recreated G0 one layer up — a
+control asserting it is enforced by a rule that matches different events — so
+they landed in `core-rs/src/predicate.rs` and `compliance/src/predicates.py`
+together, behind one normative spec section and one shared conformance table
+(`spec/v0.1/fixtures/predicate-cases.json`) that both suites run.
+- `$eq $ne $in $nin $gt $gte $lt $lte $exists $contains $prefix $suffix`.
+- An object is an operator expression only when **every** key is `$`-prefixed,
+  so no existing policy changes meaning. A *mixed* object is rejected at load,
+  because `{"$gt": 5, "unit": "ms"}` would otherwise become a predicate that
+  can never match — and a rule that never fires is one nobody notices is broken.
+- No regex operator, deliberately: a regex over a large event stream on behalf
+  of a user-supplied catalog is a denial-of-service primitive.
+- `Policy::from_json` now validates predicates and returns
+  `Error::InvalidPolicyRule`. The guardian hot path stays a plain boolean.
+
+**Schema gaps found by dogfooding.** `system.schema.json` gains
+`agent_trace_data`, `model_io_content` and `credentials_and_secrets` data
+classes — an agentic system's most sensitive store is usually its own
+telemetry, and the enum had nowhere honest to put it. Additive, so no existing
+registry breaks.
+
 ### Changed (Phase 8)
 - **`TRUSTLAYER_EVENT_RETENTION_MAX` no longer deletes.** It was a hard cap
   that evicted the oldest events on overflow, which could destroy logs Art. 12

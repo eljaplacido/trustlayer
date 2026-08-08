@@ -262,7 +262,21 @@ closes named ones.
     *not* a compliance claim — it is a live demonstration of gap G4, since
     every check in the scanner is a field-presence check. Assurance tiers
     (Slice 8.2) are what make the score mean something.
-- [ ] Slice 8.2 — evidence query v2 + assurance tiers (ADR-018, G3/G4/G9)
+- [x] **Slice 8.2 — evidence query v2 + assurance tiers (ADR-018, closes
+  G3/G4/G9).** The compliance report no longer answers a boolean. Assurance
+  tiers (`unknown` / `declared` / `evidenced` / `verified`) are reported
+  separately and **never blended** — there is no `satisfaction_rate_percent`
+  and no way to print one. Four new predicate forms (`coverage`, `sequence`,
+  `absence`, `resolution`) answer what an auditor actually asks; coverage over
+  an empty population is `INDETERMINATE`, never 100%. Controls carry
+  `applies_to_roles` / `applies_from`, and `article-50-v1.yaml` encodes the
+  Digital Omnibus timeline as data. Predicate operators landed in **both**
+  engines behind one normative spec section (§4.3.1) and one shared conformance
+  table both suites run.
+  - **Known limits, stated rather than discovered:** streaming evaluation
+    (ADR-018 §5) is not built — the engine materialises the event list, which
+    is correct at current volumes and a real limit at scale. `scope`/`window`
+    are rejected by validation rather than silently ignored.
 - [ ] Slice 8.3 — agentic trust model (ADR-019, G7/G8/G10)
 - [ ] Slice 8.4 — `evaluators/` package (ADR-020, G11)
 - [ ] Slice 8.5 — Annex IV document model + remediation guidance (ADR-021, G5)

@@ -22,6 +22,7 @@ pub mod pg_store;
 pub mod policy;
 #[cfg(feature = "server")]
 pub mod policy_watch;
+pub mod predicate;
 #[cfg(feature = "server")]
 pub mod rate_limit;
 pub mod reflections;

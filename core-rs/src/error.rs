@@ -10,6 +10,12 @@ pub enum Error {
     #[error("invalid policy JSON: {0}")]
     InvalidPolicy(#[source] serde_json::Error),
 
+    /// A policy that parses but contains a predicate that could never behave
+    /// as its author intended (ADR-018). Rejected at load rather than silently
+    /// never matching.
+    #[error("invalid rule {rule:?}: {reason}")]
+    InvalidPolicyRule { rule: String, reason: String },
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
