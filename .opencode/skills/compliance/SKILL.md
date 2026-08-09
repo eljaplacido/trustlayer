@@ -7,14 +7,17 @@ description: Use when working on TrustLayer EU AI Act / governance compliance to
 
 ## Scope
 
-- `compliance/` schemas, controls, scanner, evidence linker, report/audit generators
-- Dashboard Compliance pane consumers of readiness JSON
-- Cross-SDK event types used as evidence (`DISCLOSURE_SHOWN`, `CONTENT_MARKED`)
-- Hermes `07_Compliance/` graph notes when vault integration changes
-
-- `compliance/remediation/` guidance catalogs and the remediation planner
+- `compliance/` schemas, controls, scanner, evidence linker, evidence query,
+  remediation planner, report/audit generators
+- `compliance/remediation/` guidance catalogs
+- Payload predicates — **both** `core-rs/src/predicate.rs` and
+  `compliance/src/predicates.py` (see rule 6)
 - Evidence-integrity surfaces (`core-rs/src/integrity.rs`, `checkpoint.rs`,
   `spec/v0.1/05-http-api.md` §5.12) when compliance tooling consumes them
+- Dashboard Compliance pane consumers of readiness JSON
+- Cross-SDK event types used as evidence (`DISCLOSURE_SHOWN`, `CONTENT_MARKED`,
+  `HUMAN_DECISION`, `HARNESS_SNAPSHOT`)
+- Hermes `07_Compliance/` graph notes when vault integration changes
 
 ## Rules
 
@@ -31,15 +34,28 @@ description: Use when working on TrustLayer EU AI Act / governance compliance to
    Fixtures under `spec/v0.1/fixtures/` are read by all five implementations —
    a fixture exercised only by the language that produced it proves nothing
    about interoperability, and that omission is what produced gap G0.
-6. **Deterministic first, model second** (P2). The engine decides everything it
+6. **One predicate language, two implementations** (P6). Payload predicates
+   live in `core-rs/src/predicate.rs` **and** `compliance/src/predicates.py`.
+   They are a matched pair: the policy engine and the evidence engine must
+   match the same events, or a control can claim to be enforced by a rule that
+   does not. **Change one, change both, in the same commit**, and add a case to
+   `spec/v0.1/fixtures/predicate-cases.json` — the shared table both suites
+   run. Normative definition: spec §4.3 and §4.3.1.
+   - Operators are `$`-prefixed. An object is an operator expression only when
+     *every* key is prefixed; anything else is a literal compared by deep
+     equality, so v0.1 policies keep their meaning.
+   - There is deliberately **no regex operator**. A regex over a large event
+     stream on behalf of a user-supplied catalog is a denial-of-service
+     primitive. Use `$prefix` / `$suffix`.
+7. **Deterministic first, model second** (P2). The engine decides everything it
    can compute. A model is invoked only on what the engine marked
    `INDETERMINATE`, and its output is re-checked deterministically wherever a
    check exists. Never replace a computable answer with a generated one.
-7. **Propose, never apply** (P4). No compliance component writes to a user's
+8. **Propose, never apply** (P4). No compliance component writes to a user's
    repository, vault, or registry on its own authority. Remediation
    `artifacts` are suggested paths for a human to review. This is an Art. 14
    obligation, not a UX preference.
-8. **Honest naming** (P10). A heuristic is called a heuristic. "Readiness"
+9. **Honest naming** (P10). A heuristic is called a heuristic. "Readiness"
    never masquerades as "conformity". Never blend assurance levels into a
    single number.
 
@@ -51,9 +67,21 @@ Use these words precisely; they are not interchangeable.
 |---|---|
 | **Readiness** | Declared fields and artifacts are present. Says nothing about whether they are true or operating. |
 | **Evidence** | Runtime trace events substantiate a control. |
-| **Verified** | Evidence exists *and* its integrity chain checks out. |
+| **Verified** | Evidence exists, its integrity chain checks out, **and** something independent confirms it. See below — two of the three is `evidenced`, not `verified`. |
 | **Conformity** | A legal status. TrustLayer never confers it, and as of 2026 no harmonised standard is cited in the OJEU, so nothing does. |
 | **Blocking** | The gap defeats a conformity claim outright, rather than weakening it. |
+| **INDETERMINATE** | The engine could not decide — empty population, no query, evidence outside retention. Distinct from a failure, and the *only* input a model layer may see (P2). |
+
+Assurance tiers are `unknown` → `declared` → `evidenced` → `verified`. Never
+blend them into one number; `AssuranceReport` deliberately has no combined
+score, and reintroducing one recreates gap G4.
+
+`verified` requires three things, not two: the query passed, the chain
+verifies, **and** an independent confirmation. Without the third it would mean
+"the system said so and its log was not edited", which is not independent of
+the party being assessed. A *failed* chain pulls a control **down** to
+`declared` — a broken chain undermines the evidence, it does not merely fail to
+support it.
 
 `PASS` on a readiness check means a field is filled in. Do not report it as
 compliance.
@@ -121,6 +149,11 @@ python -m compliance.src.remediation --readiness readiness.json \
 # Verify the evidence behind a compliance claim
 curl "$GUARDIAN/v1/integrity/verify?agent_id=<id>"
 curl "$GUARDIAN/v1/integrity/checkpoints?agent_id=<id>"
+
+# Gate on runtime evidence rather than on declarations
+python -m compliance.src.evidence_linker \
+    --system system.yaml --framework compliance/controls/eu-ai-act-v1.yaml \
+    --min-assurance evidenced
 ```
 
 ## Change Checklist

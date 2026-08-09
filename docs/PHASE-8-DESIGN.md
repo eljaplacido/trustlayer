@@ -276,7 +276,7 @@ they are how the next agent session stays inside the design.
 - Canonical skills live in `.opencode/skills/<name>/SKILL.md`.
 - `.claude/skills/<name>` becomes a **symlink** to the canonical
   directory so Claude Code and OpenCode read one source of truth and
-  cannot drift. (Decision recorded in ADR-023 §4.)
+  cannot drift. (Decision recorded in ADR-023 §7.)
 - New skills: `evidence` (authoring and reviewing evidence queries),
   `evaluators` (adding a provider or an evaluator role, and the grounding
   contract), `workbench` (dashboard component and a11y conventions).
@@ -304,16 +304,21 @@ they are how the next agent session stays inside the design.
 Ordered by dependency and by regulatory urgency (Art. 50(2) marking lands
 2026-12-02; high-risk 2027-12-02).
 
-| Slice | Content | ADR | Depends on |
-|---|---|---|---|
-| **8.0** | Fix G0: event-type enum drift across `control.schema.json`, spec §1.3/§2 ("seven" → nine), fixtures, cross-SDK round-trip tests. Regression test that loads **every** catalog in `compliance/controls/`. | 018 | — |
-| **8.1** | Evidence integrity: per-`agent_id` hash chain, signed checkpoints, `GET /v1/integrity/*`, time-based retention floor, archive-on-overflow. | 017 | 8.0 |
-| **8.2** | Evidence query v2: MatchSpec reuse, sequence/coverage/absence/resolution predicates, assurance tiers, role and date filtering, `after_seq` pagination. | 018 | 8.1 |
-| **8.3** | Agentic trust model: `HARNESS_SNAPSHOT` + `HUMAN_DECISION` event types, optional `parent_trace_id`, workflow graph metrics, trust envelope (post-hoc), substantial-modification change records, marking verification. | 019 | 8.2 |
-| **8.4** | `evaluators/` package: provider abstraction, egress policy, redaction, grounding validator, `EvaluatorRun` records, control judge + adversarial verifier. Hermes `LLMReflector` refactored onto it without breaking its ADR-013 API. | 020 | 8.2 |
-| **8.5** | Annex IV document model, per-claim provenance, Art. 13 / Art. 72 / Art. 47 generators, ISO 42001 + NIST AI RMF crosswalks, document author + code emitter roles. | 021 | 8.4 |
-| **8.6** | Art. 73 incident pipeline with statutory clocks and Commission template export. | 022 | 8.3, 8.5 |
-| **8.7** | Agentic workbench UIX: design tokens, hash routing, proposal diff, run cards, egress/assurance badges, NL→query compiler, MCP proposal tools. | 023 | 8.4, 8.5 |
+| Slice | Status | Content | ADR | Depends on |
+|---|---|---|---|---|
+| **8.0** | **shipped** | Fix G0: event-type enum drift across `control.schema.json`, spec §1.3/§2 ("seven" → nine), fixtures, cross-SDK round-trip tests. Regression test that loads **every** catalog in `compliance/controls/`. | 018 | — |
+| **8.1** | **shipped** *(Postgres parity deferred)* | Evidence integrity: per-`agent_id` hash chain, signed checkpoints, `GET /v1/integrity/*`, time-based retention floor, archive-on-overflow. | 017 | 8.0 |
+| — | **shipped** | Remediation guidance engine. Unplanned; came out of dogfooding 8.0. | 024 | 8.0 |
+| **8.2** | **shipped** *(streaming deferred)* | Evidence query v2: MatchSpec reuse, sequence/coverage/absence/resolution predicates, assurance tiers, role and date filtering, `after_seq` pagination. | 018 | 8.1 |
+| **8.3** | **partial** | Agentic trust model. Shipped: `HARNESS_SNAPSHOT` + `HUMAN_DECISION` event types, optional `parent_trace_id`. Open: workflow graph metrics, trust envelope, substantial-modification change records, marking verification. | 019 | 8.2 |
+| **8.4** | not started | `evaluators/` package: provider abstraction, egress policy, redaction, grounding validator, `EvaluatorRun` records, control judge + adversarial verifier. Hermes `LLMReflector` refactored onto it without breaking its ADR-013 API. | 020 | 8.2 |
+| **8.5** | not started | Annex IV document model, per-claim provenance, Art. 13 / Art. 72 / Art. 47 generators, ISO 42001 + NIST AI RMF crosswalks, document author + code emitter roles. | 021 | 8.4 |
+| **8.6** | not started | Art. 73 incident pipeline with statutory clocks and Commission template export. | 022 | 8.3, 8.5 |
+| **8.7** | not started | Agentic workbench UIX: design tokens, hash routing, proposal diff, run cards, egress/assurance badges, NL→query compiler, MCP proposal tools. | 023 | 8.4, 8.5 |
+
+Status is maintained here **and** in `docs/CURRENT_STATUS.md`; the latter
+carries the detail and the stated limits. Deferrals are named in the row
+rather than left to be discovered from the code.
 
 Explicitly **out of scope for Phase 8**, recorded so it is not
 accidentally absorbed:
@@ -361,3 +366,9 @@ Stated here so they appear in the product, not only in review.
 | ADR-021 | Annex IV Document Model and Claim Provenance |
 | ADR-022 | Art. 73 Incident Pipeline |
 | ADR-023 | Agentic Workbench UIX |
+| ADR-024 | Remediation Guidance Engine — From Findings to Ordered Work |
+
+ADR-024 was not in the original plan. It came out of dogfooding slice 8.0:
+the scanner reported gaps and said nothing about closing them, so the work
+that actually happened was whatever moved the score. Recorded here rather
+than folded silently into 8.5.

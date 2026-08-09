@@ -351,6 +351,27 @@ An agent with no chain MUST be absent from `chains` rather than
 reported as verified — an unknown `agent_id` (a typo, say) must never
 read as a clean bill of health.
 
+**Scope of the attestation.** This route verifies the chain the server
+currently holds. An implementation MAY answer it from the chain it
+loaded and has been appending to, and is NOT required to re-read the
+underlying store per request — polling the backing store on every
+verify would make an auditor's request a denial-of-service lever
+against the ingest path.
+
+The consequence is normative and MUST be understood by anyone relying
+on the answer: an edit made to the backing store *behind* a running
+process is not necessarily reported by that process. It is detected
+when the chain is next read from the store — on restart, or by a
+verifier reading the store directly. An auditor establishing that a
+log was never edited MUST therefore verify from a cold read of the
+store rather than trusting a long-lived process's own account of
+itself, and SHOULD compare the result against a signed checkpoint
+(§5.12.4) obtained out of band.
+
+This is a statement about who is attesting, not a weakness in the
+chain. A process vouching for bytes it has held in memory since it
+wrote them is attesting to less than an independent reader is.
+
 ### 5.12.4 `GET /v1/integrity/checkpoints`
 
 | Param | Type | Required | Effect |

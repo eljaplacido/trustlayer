@@ -17,7 +17,7 @@ Order for feature work: **scout → plan → (human approve) → build → revie
 
 `.opencode/skills/<name>/` is canonical. `.claude/skills/<name>` is a
 **symlink** to it, so Claude Code and OpenCode read the same file and cannot
-drift (ADR-023 §4). Edit the `.opencode/` copy; never replace a symlink with a
+drift (ADR-023 §7). Edit the `.opencode/` copy; never replace a symlink with a
 real directory — two copies of a workflow means one of them is silently wrong,
 and there is no way to tell which.
 

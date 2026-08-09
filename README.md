@@ -18,8 +18,9 @@ sidecar, and get:
   agent (Claude Code, MCP Inspector, frameworks),
 - a **Prometheus `/metrics` endpoint** with verdict counts, latency
   histograms, and ingest volume,
-- a **bridge to OpenTelemetry** that ships events into any existing
-  OTel pipeline (OTLP, Jaeger, Tempo, Honeycomb, Grafana, Datadog).
+- a **bridge to OpenTelemetry** (Python SDK today) that ships events into
+  any existing OTel pipeline (OTLP, Jaeger, Tempo, Honeycomb, Grafana,
+  Datadog).
 - a **compliance toolkit** for machine-readable system registries, readiness
   checks, runtime evidence matching, dashboard reports, and audit packages.
 
@@ -136,8 +137,27 @@ The sidecar binds `127.0.0.1:8089` and exposes:
 - `POST /v1/events` / `GET /v1/events` — trace store ingest + read
 - `GET /v1/sessions` and `/v1/sessions/{agent}/{session}` — session
   summaries and drill-down
+- `GET /v1/events/chained` — events with their Art. 12 chain position,
+  cursor-paged (spec §5.12)
+- `GET /v1/integrity/verify` — recompute the chain; a tampered log is
+  `200` with `"ok": false`, because the request succeeded and its answer
+  is that the log is broken
+- `GET /v1/integrity/checkpoints` — signed commitments to chain heads
+
+`/v1/integrity/verify` attests the chain **the running process holds**.
+It does not re-read the store per request — that would turn an auditor's
+request into a lever against the ingest path. So an edit made to
+`events.jsonl` behind a live server is caught on the next cold read, not
+by that server. To establish that a log was never edited, verify from a
+restart (or read the store directly) and check the result against a
+signed checkpoint obtained out of band. Spec §5.12.3 states this
+normatively.
 - `GET /metrics` — Prometheus exposition
 - `GET /healthz` — liveness
+
+The `/v1/integrity/*` routes are optional: a backend that keeps no chain
+answers `501`, not `500`. It is healthy, it simply cannot attest — and a
+`500` would read as a transient fault worth retrying.
 
 It loads `core-rs/policies/default.json` and watches it for changes
 (hot-reload).
@@ -665,10 +685,22 @@ trustlayer_check_total{decision="PASS|FAIL|ESCALATE"}    counter
 trustlayer_events_ingested_total                          counter
 trustlayer_check_duration_seconds                         histogram
 trustlayer_requests_total{route, status}                  counter
+
+trustlayer_retention_live_events                          gauge
+trustlayer_retention_archived_total                       gauge
+trustlayer_retention_floor_blocked_total                  gauge
+trustlayer_integrity_checkpoints_total                    gauge
+trustlayer_integrity_chains_total                         gauge
 ```
 
 The verdict and request counters are pre-touched at zero so
 dashboards work from cold start.
+
+The five gauges are the Art. 12 evidence surface, refreshed from the trace
+store at scrape time. `trustlayer_retention_archived_total` counts events
+moved to the archive log rather than deleted, and
+`trustlayer_retention_floor_blocked_total` counts evictions the retention
+floor refused. A backend that keeps no chain simply reports zero.
 
 ### Recommended KPIs and PromQL
 
@@ -701,6 +733,11 @@ These come out of the event payloads themselves, not `/metrics`:
   oncall queue isn't actually being watched.
 - **`/v1/events` 4xx rate > 1%** — an agent is emitting malformed
   envelopes; check SDK versions across the fleet.
+- **`trustlayer_retention_floor_blocked_total` rising** — the live log is
+  outgrowing `TRUSTLAYER_EVENT_RETENTION_MAX` because the Art. 12 floor is
+  correctly refusing to evict evidence that is still too young. Add disk or
+  shorten the floor deliberately. It is never a reason to lower the floor
+  reflexively, and it never means evidence was dropped.
 
 ### Dashboards
 
@@ -726,10 +763,27 @@ TrustLayer includes a compliance toolkit for **implementation and
 evidence** workflows. It is an engineering control plane — **not** legal
 advice, conformity assessment, or a certification.
 
-Article 50 transparency obligations become applicable **2 August 2026**
-for in-scope providers and deployers (chatbots, generative media,
-emotion/biometric systems, deepfakes, public-interest AI content). Duties
-depend on **role and use case**, not company size.
+Article 50 transparency duties depend on **role and use case**, not company
+size, and the Digital Omnibus split their timeline:
+
+| Obligation | Applies from | Binds |
+|---|---|---|
+| Art. 50(1) — disclose AI interaction | **live since 2026-08-02** | provider |
+| Art. 50(3) — emotion recognition / biometric categorisation | **live since 2026-08-02** | **deployer** |
+| Art. 50(4) — deepfake + public-interest text labelling | **live since 2026-08-02** | **deployer** |
+| Art. 50(2) — machine-readable marking of synthetic content | **2026-12-02** (3-month grace for pre-Aug systems) | provider |
+
+The split matters: 50(3) and 50(4) are *deployer* duties, routinely missed by
+providers who assume the obligation stopped with them. TrustLayer encodes this
+as data — `applies_to_roles` and `applies_from` in
+`compliance/controls/article-50-v1.yaml` — so a deployer is never scored
+against provider obligations and a control that has not commenced is reported
+separately rather than as a gap to fix today.
+
+High-risk (Annex III) obligations were deferred to **2027-12-02**. That does
+not reduce the work: it means the evidence will be assessed against a *longer*
+operating history, so runtime evidence captured now is worth more then than any
+document produced late.
 
 ### What is included
 
@@ -739,6 +793,10 @@ depend on **role and use case**, not company size.
 | Control catalogues | `compliance/controls/*.yaml` | EU AI Act, Aitomation template, Article 50 |
 | Readiness scanner | `python -m compliance.src.readiness_scanner` | PASS/FAIL/GAP + score; CI exit codes |
 | Evidence linker | `compliance/src/evidence_linker.py` | Match trace events to control `evidence_query` |
+| Evidence query v2 | `compliance/src/evidence_query.py` | Coverage / sequence / absence / resolution predicates + assurance tiers |
+| Remediation planner | `python -m compliance.src.remediation` | Ordered, cited plan across technical / documentation / process |
+| Guidance catalog | `compliance/remediation/*.yaml` | How to close each gap — data, not code |
+| Evidence integrity | `core-rs/src/integrity.rs`, `checkpoint.rs` | Art. 12 hash chain, retention floor, signed checkpoints |
 | Report / audit generators | `report_generator.py`, `audit_generator.py` | Dashboard JSON + Markdown/JSON packages |
 | Dashboard Compliance pane | `dashboard/src/CompliancePane.tsx` | Human-readable multi-system readiness |
 | Hermes compliance graph | `skills/hermes/compliance_graph.py` | Obsidian notes under `07_Compliance/` |
@@ -749,7 +807,12 @@ depend on **role and use case**, not company size.
 # 1. Add system.yaml to your product repo (copy compliance/examples/system.yaml)
 # 2. Instrument DISCLOSURE_SHOWN / CONTENT_MARKED where UX requires it
 # 3. Scan
-python -m compliance.src.readiness_scanner --project-dir /path/to/product
+python -m compliance.src.readiness_scanner --project-dir /path/to/product \
+    --output readiness.json
+
+# 3b. Turn the gaps into work. Never writes to your project.
+python -m compliance.src.remediation --readiness readiness.json \
+    --output remediation.md --fail-on-blocking
 
 # 4. Feed the dashboard (example fixture ships in dashboard/public/)
 python -c "
@@ -907,7 +970,11 @@ Implementation mirror (developer-friendly view of the same wire format):
 | `TRUSTLAYER_POLICY` | `./policies/default.json` | Policy file. |
 | `TRUSTLAYER_POLICY_RELOAD` | `true` | `false` disables the file watcher. |
 | `TRUSTLAYER_EVENTS_PATH` | `./events.jsonl` | JSONL trace store. `""` = in-memory only. |
-| `TRUSTLAYER_EVENT_RETENTION_MAX` | _(unset)_ | Cap JSONL to ~N most-recent events (oldest evicted + file compacted). Unset = unbounded. |
+| `TRUSTLAYER_EVENT_RETENTION_MAX` | _(unset)_ | **Soft target** for live JSONL events. Overflow is *archived* to `events.archive.jsonl`, never deleted. Unset = unbounded. |
+| `TRUSTLAYER_RETENTION_MIN_DAYS` | `180` | Art. 12 retention floor: minimum age before an event may leave the live log. **Outranks the target** — the log grows rather than destroy evidence. `730` for biometric / law-enforcement. `0` disables (dev only). |
+| `TRUSTLAYER_SIGNING_KEY` | _(unset)_ | Ed25519 seed for chain checkpoints — a `chmod 600` file path, or hex. Prefer the file: an env var is readable from `/proc/<pid>/environ`. Unset ⇒ unsigned checkpoints, still emitted. |
+| `TRUSTLAYER_INTEGRITY_CHECKPOINT_EVERY` | `1000` | Appends between chain checkpoints. `0` disables the count trigger. |
+| `TRUSTLAYER_INTEGRITY_CHECKPOINT_INTERVAL_SECS` | `3600` | Seconds between checkpoints. `0` disables the time trigger. |
 | `TRUSTLAYER_DATABASE_URL` | _(unset)_ | `postgres://…` DSN → use the Postgres backend (needs `--features server,postgres`). Empty = JSONL. |
 | `TRUSTLAYER_DB_MAX_CONNECTIONS` | `10` | Postgres pool size per process. |
 | `TRUSTLAYER_VAULT_PATH` | `./obsidian_vault` | Vault root for `/v1/reflections`. |
@@ -951,7 +1018,8 @@ trustlayer/
 │   ├── typescript/        @trustlayer/sdk
 │   └── go/                trustlayer (Go SDK)
 ├── skills/hermes/         Memory + reflection + compliance graph
-├── compliance/            Registries, scanners, evidence, audit packages
+├── compliance/            Registries, scanners, evidence, remediation, audit
+│   └── remediation/       Guidance catalogs (how to close each gap)
 ├── mcp-server/            FastMCP bridge to SDK + guardian + Hermes
 ├── dashboard/             React + Vite UI (7 panes incl. Compliance)
 ├── examples/              End-to-end demos
@@ -994,17 +1062,37 @@ Local gate: `./scripts/verify.sh test` (see CI for the published matrix).
 | MCP server | IDE / agent tool surface |
 | Dashboard | Seven-pane operator UI |
 
-**Shipped (Phases 1–7 hardening):** four SDKs, policy engine with payload
-predicates and hot-reload, JSONL + Postgres trace stores, dashboard
-(Overview / Metrics / Compliance / Traces / Sessions / Reflections /
-Policy), MCP (stdio + SSE), Hermes (+ LLM reflector, code graph),
-bearer auth, rate limit, Prometheus `/metrics`, OTel bridge, formal
-v0.1 spec + fixtures, Docker Compose, EU AI Act / Article 50 toolkit
-with nested config + cross-SDK event parity (ADR-016), agent contract
-and verify gate.
+**Shipped (Phases 1–7):** four SDKs, policy engine with payload predicates
+and hot-reload, JSONL + Postgres trace stores, dashboard (Overview /
+Metrics / Compliance / Traces / Sessions / Reflections / Policy), MCP
+(stdio + SSE), Hermes (+ LLM reflector, code graph), bearer auth, rate
+limit, Prometheus `/metrics`, OTel bridge (Python), formal v0.1 spec + fixtures,
+Docker Compose, EU AI Act / Article 50 toolkit with nested config +
+cross-SDK event parity (ADR-016), agent contract and verify gate.
 
-**Next:** live evidence-linker dogfood against authenticated stores;
-package publish (PyPI / npm / crates.io / pkg.go.dev); stable spec URL.
+**Shipped (Phase 8, in progress):**
+
+- **Art. 12 evidence integrity** — per-`agent_id` hash chain, retention
+  floor that outranks the count target, archive-on-overflow, Ed25519
+  checkpoints, `GET /v1/integrity/*` (ADR-017, spec §5.12).
+- **Assurance tiers** — `declared` / `evidenced` / `verified`, reported
+  separately and **never blended into one score**. Coverage, sequence,
+  absence and resolution predicates; role and commencement-date filtering
+  (ADR-018).
+- **Remediation guidance** — every gap comes with ordered, cited work
+  across technical / documentation / process (ADR-024).
+- **Agentic trust model, in part** — `HUMAN_DECISION`,
+  `HARNESS_SNAPSHOT`, optional `parent_trace_id` (ADR-019). The event set
+  is now eleven.
+
+**Known deferrals**, stated rather than left to be found: Postgres
+integrity parity (the backend answers `501`; run JSONL if you need scale
+*and* Art. 12 integrity), streaming evidence evaluation, and the ADR-019
+workflow graph.
+
+**Next:** ADR-020 evaluators, ADR-021 Annex IV documents, ADR-022
+incident pipeline, ADR-023 workbench UIX; package publish (PyPI / npm /
+crates.io / pkg.go.dev); stable spec URL.
 
 Detail: [`docs/CURRENT_STATUS.md`](./docs/CURRENT_STATUS.md) ·
 [`docs/CURRENT_STATE.md`](./docs/CURRENT_STATE.md) ·

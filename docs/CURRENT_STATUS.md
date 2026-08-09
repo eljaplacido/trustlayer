@@ -1,9 +1,15 @@
 # Current Status
 
-**Phase:** Phase 7 — EU AI Act Compliance Framework (In Progress)
-**Overall Status:** GREEN
+**Phase:** Phase 8 — Compliance Depth, Agentic Trust, and the Evaluator Layer (In Progress)
+**Overall Status:** GREEN — `./scripts/verify.sh test` exits 0; CI green on `main`.
 
-## 📝 Latest — Phase 7: EU AI Act Compliance Framework (In Progress)
+Phase 8 detail is in the roadmap below and in
+[`docs/PHASE-8-DESIGN.md`](PHASE-8-DESIGN.md). Shipped so far: slices 8.0,
+8.1, 8.2, the remediation guidance engine (ADR-024), and part of 8.3.
+Named deferrals: Postgres integrity parity, streaming evidence evaluation,
+and the ADR-019 workflow graph.
+
+## 📝 Phase 7 — EU AI Act Compliance Framework (superseded by Phase 8)
 Building the compliance layer on top of TrustLayer's evidence layer. This enables
 mapping runtime trace events to regulatory controls (EU AI Act, internal governance
 templates) and generating audit-ready compliance reports.
@@ -296,6 +302,19 @@ closes named ones.
 - [ ] Slice 8.7 — agentic workbench UIX (ADR-023)
 
 ## 📝 Recent Updates
+- **2026-08-09**: Release-readiness pass. Test totals **737** (Rust 207,
+  compliance 222, TS SDK 61, dashboard 46, Python SDK 60 + 16 OTel behind the
+  extra, Hermes 57, MCP 21, Go green under `-race`); `./scripts/verify.sh test`
+  exits 0. Three fixes: the ADR-023 §7 skill symlinks were excluded by
+  `.gitignore` and so existed only locally — the drift the ADR prevents;
+  `MetricsPane` assigned instead of summed `{route,status}` samples and
+  under-reported requests per route; and spec §5.12.3 now states what
+  `/v1/integrity/verify` attests (the chain the running process holds, not a
+  re-read of the store). The stack was dogfooded against a live sidecar —
+  policy verdicts, bearer auth, the five evidence gauges, chain tamper
+  detection on re-read, a verified Ed25519 checkpoint, the OTel bridge, and
+  the compliance toolkit including the evidence linker against an
+  authenticated store, where controls escalated `declared` → `evidenced`.
 - **2026-08-06**: Phase 8 Slices 8.0 + 8.1 landed. Event-type lockstep closes
   gap G0 (the Art. 50 control catalog was unloadable); Art. 12 evidence
   integrity ships the hash chain, retention floor, archive-on-overflow, signed

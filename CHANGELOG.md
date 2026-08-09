@@ -199,7 +199,7 @@ exist yet.
   different bodies.
 - **Agent skills are now single-source.** `.claude/skills/<name>` are symlinks
   to the canonical `.opencode/skills/<name>` so both harnesses read one file
-  and cannot drift (ADR-023 §4). Every skill states its refusal conditions —
+  and cannot drift (ADR-023 §7). Every skill states its refusal conditions —
   load-bearing, because they are what stops an agent raising a compliance score
   by loosening a check instead of closing the gap.
 - The compliance package gains a mypy gate (`disallow_untyped_defs`,
@@ -207,6 +207,34 @@ exist yet.
   `strict_equality`). `scripts/verify.sh` now passes `--config-file`
   explicitly: invoked from the repo root, mypy would otherwise find no config
   and run with defaults — a gate switched off without failing.
+
+### Fixed (Phase 8)
+- **The skill symlinks were never actually shared.** `.gitignore` excluded all
+  of `.claude/`, so the ADR-023 §7 symlinks existed only on the machine that
+  created them — a fresh clone got the OpenCode copies and nothing for Claude
+  Code, which is precisely the drift the ADR exists to prevent. `.claude/*` is
+  now ignored with `!.claude/skills/` re-included (git cannot re-include a path
+  inside an excluded *directory*, hence the glob). Machine-local settings stay
+  untracked, and a test asserts it.
+- **Metrics pane under-reported requests per route.**
+  `trustlayer_requests_total` is labelled `{route,status}`, so one route yields
+  one sample per status code. `MetricsPane` *assigned* rather than summed, so a
+  route serving both `200` and `429` displayed only the last sample parsed and
+  the bars silently disagreed with the total printed above them.
+- **`GET /v1/integrity/verify` now documents what it attests.** It verifies the
+  chain the running process holds and deliberately does not re-read the store
+  per request — that would make an auditor's request a denial-of-service lever
+  against ingest. The consequence (an edit made behind a live server is caught
+  on the next cold read, not by that server) was encoded in the Rust tests as
+  `editing_the_event_log_is_detected_on_reopen`, but stated nowhere an operator
+  or auditor would look. Now normative in `spec/v0.1/05-http-api.md` §5.12.3
+  and in the README.
+- `compliance/tests/test_repo_invariants.py` guards the repo-wide claims no
+  single package owns: skill symlinks are tracked as symlinks (mode `120000`),
+  machine-local `.claude` files are not tracked, every ADR declares a status,
+  the Phase 8 ADR index is complete, the spelled-out event-type count in the
+  spec matches the Rust enum, every committed fixture is documented, and the
+  shared predicate table is read by *both* the Rust and Python suites.
 
 ### Deferred (Phase 8)
 - **Postgres integrity parity.** The `postgres` backend answers the integrity
