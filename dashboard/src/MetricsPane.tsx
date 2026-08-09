@@ -102,7 +102,11 @@ export function MetricsPane() {
   let totalRequests = 0;
   for (const m of metrics) {
     if (m.name === "trustlayer_requests_total" && m.labels.route) {
-      requestsByRoute[m.labels.route] = m.value;
+      // Sum, don't assign: the series is labelled {route, status}, so one
+      // route yields a sample per status code. Assigning kept only the last
+      // status seen, which made the bars under-report and disagree with the
+      // total above them the moment a route served anything but one status.
+      requestsByRoute[m.labels.route] = (requestsByRoute[m.labels.route] ?? 0) + m.value;
       totalRequests += m.value;
     }
   }
