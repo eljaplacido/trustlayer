@@ -29,7 +29,18 @@ target/
 # --- Editors / OS / AI tooling ---
 .idea/
 .vscode/
-.claude/
+# Ignore .claude/ contents — but NOT the directory itself, because git cannot
+# re-include anything inside an excluded directory, and the skill symlinks
+# below have to be tracked.
+#
+# ADR-023 §7 makes `.claude/skills/<name>` a symlink to the canonical
+# `.opencode/skills/<name>` so Claude Code and OpenCode read one file and
+# cannot drift. Ignoring them made that true only on the machine that created
+# them: a fresh clone got the OpenCode copies and nothing for Claude Code —
+# precisely the drift the ADR exists to prevent. Settings stay ignored; they
+# are machine-local.
+.claude/*
+!.claude/skills/
 *.swp
 .DS_Store
 Thumbs.db
