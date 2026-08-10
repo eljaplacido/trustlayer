@@ -5,6 +5,22 @@ set -euo pipefail
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 MODE="${1:-all}"
 
+# The audit tools are installed by CI but are not part of any language
+# toolchain, so a fresh clone does not have them. Without this, the security
+# gate fails with a bare `No module named pip_audit` and no indication that the
+# fix is one pip install away.
+#
+# It still fails. A missing auditor is not a passing audit — that is precisely
+# the "gate switched off without failing" shape this repository keeps finding.
+require_tool() {
+  local probe="$1" name="$2" install="$3"
+  if ! eval "$probe" >/dev/null 2>&1; then
+    printf '\n%s is required by `verify.sh security` and is not installed.\n' "$name" >&2
+    printf 'Install it with:\n    %s\n\n' "$install" >&2
+    exit 1
+  fi
+}
+
 run_tests() {
   (
     cd "$ROOT/sdks/python"
@@ -69,6 +85,8 @@ run_tests() {
 }
 
 run_security() {
+  require_tool "cargo audit --version" "cargo-audit" "cargo install cargo-audit"
+  require_tool "python3 -m pip_audit --version" "pip-audit" "python3 -m pip install pip-audit"
   (
     cd "$ROOT"
     git grep -nEI '(AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----|ghp_[A-Za-z0-9]{36})' -- . ':!docs/**' ':!CHANGELOG.md' && exit 1 || true

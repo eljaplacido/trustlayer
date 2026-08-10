@@ -241,6 +241,12 @@ findable.
   contribution. A new SDK is the most self-contained of them: the spec is
   precise enough to implement against and every event type now has a fixture,
   so conformance is largely a matter of passing a suite that already exists.
+- **`verify.sh security` now says what is missing.** `cargo-audit` and
+  `pip-audit` ship with no language toolchain, so a fresh clone did not have
+  them and the documented command failed with a bare `No module named
+  pip_audit`. It now checks for both up front and prints the install line, and
+  `CONTRIBUTING.md` lists them. It still *fails* — a missing auditor is not a
+  passing audit, which is the same shape as everything in the audit below.
 - **`test_repo_invariants.py` checks every relative markdown link resolves**
   across all 123 documentation files, and that the community-health files are
   present. Documentation is most of what this repository ships, and a link that

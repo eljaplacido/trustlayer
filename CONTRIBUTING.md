@@ -60,6 +60,12 @@ trustlayer/
 - Node.js 20+
 - Rust 1.75+
 - Go 1.22+
+- For `./scripts/verify.sh security` only — neither ships with a language
+  toolchain, so a fresh clone does not have them:
+  ```bash
+  cargo install cargo-audit
+  python3 -m pip install pip-audit
+  ```
 - (Optional) GitNexus for code-graph generation
 
 ### Quickstart
