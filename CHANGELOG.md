@@ -208,6 +208,55 @@ exist yet.
   explicitly: invoked from the repo root, mypy would otherwise find no config
   and run with defaults — a gate switched off without failing.
 
+### Fixed (Phase 8 — gate audit)
+
+An audit of the gates against what the documentation claims they cover. Every
+item below is a check that did not cover what a reader would reasonably assume
+it covered; none required a behaviour change to fix.
+
+- **Conformance fixtures now exist for all eleven event types**, up from six.
+  `AGENT_END`, `HUMAN_ESCALATION`, `LLM_CALL`, `POLICY_CHECK` and `TOOL_RESULT`
+  had none, so the strict-envelope, field-preservation, round-trip and
+  unknown-field-rejection guarantees that all five implementations assert by
+  globbing that directory were being asserted for six of eleven.
+  `event-human-escalation-go.json` is pinned to the `escalation_trace_id` the
+  human-decision fixture already carried, and a test asserts the pair stays
+  joined — Art. 14 effectiveness is measured across that gap.
+- **The SDK enums are now in the lockstep test.** The G0 fix pinned the Rust
+  `EventType` to the spec prose and to `control.schema.json`, which meant a
+  twelfth event type added to those three places passed while the Python,
+  TypeScript and Go SDKs stayed behind. They were covered only indirectly, by
+  fixture round-trip — which catches a missing type only if someone also
+  remembered to add a fixture. Both holes are now asserted directly, and a
+  further test requires every event type to be carried by some fixture.
+- **`cargo check` now runs for the `python` and `postgres` features.** Both are
+  shipped, documented code paths (ADR-014 pyo3, ADR-015 Postgres) that no CI or
+  local step compiled. A signature change in `guardian.rs` or `events.rs` broke
+  them silently, and the first person to find out was whoever ran maturin or
+  pointed `TRUSTLAYER_DATABASE_URL` at a live database.
+- **Hermes has a typing gate.** It was the only Python package with no mypy at
+  all — and the package ADR-020 refactors `LLMReflector` onto. It already
+  passed `--strict` with no findings, so this records the standard the code
+  meets rather than imposing a new one. CI also gains the `ruff format --check`
+  step it was missing, which `verify.sh` already ran.
+- **The compliance package moves to `strict = true`.** A hand-picked flag list
+  left the code carrying the EU AI Act claims typed more loosely than the SDKs.
+  It too already passed `--strict`.
+- **Four of the five agent skills state refusal conditions.** Both
+  `.opencode/skills/README.md` and this changelog called them load-bearing —
+  "what stops an agent raising a compliance score by loosening a check instead
+  of closing the gap" — while only `compliance` had any. scout, plan, build and
+  review were twelve lines each. `test_repo_invariants.py` now enforces the
+  claim rather than restating it.
+- **The `build` skill was gitignored.** Writing the above turned up a third
+  instance of the same bug: the Python-artifact rule `build/` is unanchored, so
+  it matched `.opencode/skills/build/` too. `SKILL.md` was already tracked and
+  so kept working for everyone who had it, while `git add` on that path failed
+  and any *new* file in the directory would have been dropped without a word.
+  Negated next to the rule that catches it, and asserted with `git check-ignore
+  --no-index` — without `--no-index` the check stays silent for tracked files,
+  which is exactly what hid it.
+
 ### Fixed (Phase 8)
 - **The skill symlinks were never actually shared.** `.gitignore` excluded all
   of `.claude/`, so the ADR-023 §7 symlinks existed only on the machine that
