@@ -5,6 +5,13 @@ __pycache__/
 *.egg-info/
 .eggs/
 build/
+# ...but not the `build` agent skill. An unanchored `build/` matches at every
+# depth, so this Python-artifact rule also swallowed `.opencode/skills/build/`
+# — the same failure as the `.claude/skills` symlinks below, and just as
+# invisible: `SKILL.md` was already tracked, so it kept working for everyone
+# who had it, while `git add` on that path failed and any *new* file in the
+# directory would have been silently dropped.
+!.opencode/skills/build/
 dist/
 .venv/
 venv/

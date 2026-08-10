@@ -72,6 +72,58 @@ def test_claude_skill_symlink_is_tracked_by_git(name: str) -> None:
     assert entry.startswith("120000"), f"tracked but not as a symlink: {entry}"
 
 
+@pytest.mark.parametrize("name", skill_names())
+def test_every_skill_states_its_refusal_conditions(name: str) -> None:
+    """`.opencode/skills/README.md` and the CHANGELOG both call the refusal
+    conditions load-bearing — "what stops an agent raising a compliance score
+    by loosening a check instead of closing the gap".
+
+    The claim was false for four of the five skills. Only `compliance` had
+    them; scout, plan, build and review were twelve lines each and said
+    nothing about what to refuse. A claim about every skill, checked for none,
+    is the same failure as the `.claude/skills` symlinks: true where someone
+    looked, false everywhere else.
+    """
+    skill = (CANONICAL_SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+
+    assert re.search(r"^##+ Refusal conditions", skill, re.MULTILINE), (
+        f"{name}/SKILL.md has no 'Refusal conditions' section"
+    )
+    # A heading with nothing under it would satisfy the check above while
+    # leaving the agent exactly as unconstrained as before.
+    body = skill.split("Refusal conditions", 1)[1]
+    assert len([ln for ln in body.splitlines() if ln.strip().startswith("-")]) >= 3, (
+        f"{name}/SKILL.md lists fewer than three refusal conditions"
+    )
+
+
+@pytest.mark.parametrize("name", skill_names())
+def test_canonical_skill_is_not_gitignored(name: str) -> None:
+    """A skill git refuses to stage is a skill that drifts.
+
+    The Python-artifact rule `build/` is unanchored, so it matched
+    `.opencode/skills/build/` as well. `SKILL.md` was already tracked and so
+    kept working for everyone who had it — but `git add` on that path failed,
+    and a new file added to the directory would have been dropped without a
+    word. That is the `.claude/skills` failure again: correct on the machine
+    where someone looked, wrong from a fresh clone.
+
+    `--no-index` is required. Without it `git check-ignore` stays silent for
+    tracked files, which is exactly the case that hid this.
+    """
+    result = subprocess.run(
+        ["git", "check-ignore", "--no-index", "-q", f".opencode/skills/{name}/SKILL.md"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1, (
+        f".opencode/skills/{name}/SKILL.md is matched by a .gitignore rule; "
+        f"add a negation for it next to the rule that catches it"
+    )
+
+
 def test_claude_settings_stay_untracked() -> None:
     """Machine-local settings must not ride along with the skills fix."""
     tracked = git("ls-files", ".claude").splitlines()
