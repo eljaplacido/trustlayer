@@ -1,0 +1,84 @@
+name: Wire-format change
+description: Propose a change to the AgentTraceEvent envelope, an event type, or the spec.
+labels: ["spec", "needs-discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        `spec/v0.1/` is the normative contract for every layer, and
+        `CONTRIBUTING.md` asks that changes to it start here rather than as a
+        pull request. That is not ceremony: a wire-format change has to land in
+        Python, TypeScript, Go, Rust *and* the spec in one change set, with a
+        cross-language fixture, or the implementations silently disagree.
+
+
+        `spec/v0.1/` is frozen except for typos. Additive changes go to a new
+        `spec/v0.1.x/`, breaking changes to `spec/v1.0/` — see
+        `docs/VERSIONING.md`.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - Editorial — the spec is wrong, ambiguous, or contradicts an implementation
+        - Additive — a new optional field, or a new event type
+        - Breaking — an existing field changes shape, meaning, or requiredness
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: The change
+      description: >-
+        Which section, and what it should say instead. Quote the current text
+        if you are correcting it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why the format has to change
+      description: >-
+        The strongest case is something you cannot express today, or two
+        implementations that already disagree. A change that only makes an
+        existing thing tidier is a hard sell against the cost of moving five
+        implementations.
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example event
+      description: >-
+        A synthetic `AgentTraceEvent` under the proposed format. This becomes
+        the conformance fixture if the change is accepted.
+      render: json
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: awareness
+    attributes:
+      label: Before you file
+      options:
+        - label: I have read the relevant section of `spec/v0.1/`
+          required: true
+        - label: >-
+            I understand this needs Python, TypeScript, Go, Rust, the spec, and
+            a fixture in one change set — and I have said below whether I plan
+            to do that work or am proposing it for someone else
+          required: true
+
+  - type: textarea
+    id: who
+    attributes:
+      label: Are you offering to implement this?
+      description: >-
+        Either answer is welcome. "Proposing, not implementing" is useful
+        information, not a lesser contribution.
+    validations:
+      required: true

@@ -1,0 +1,15 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/eljaplacido/trustlayer/security/advisories/new
+    about: >-
+      Do not open a public issue. Use GitHub private vulnerability reporting.
+      See docs/SECURITY.md for what to include and what to leave out.
+  - name: Wire-format specification
+    url: https://github.com/eljaplacido/trustlayer/tree/main/spec/v0.1
+    about: >-
+      The normative, RFC-2119 contract every layer implements. Read this before
+      filing anything about event shape, field semantics, or conformance.
+  - name: Integration guide
+    url: https://github.com/eljaplacido/trustlayer/blob/main/docs/INTEGRATING.md
+    about: How to attach an existing agent stack to TrustLayer.

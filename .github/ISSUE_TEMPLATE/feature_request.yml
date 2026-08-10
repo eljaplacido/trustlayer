@@ -1,0 +1,73 @@
+name: Feature request
+description: Propose new behaviour that does not change the wire format.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        If your proposal changes the shape or meaning of an `AgentTraceEvent`,
+        use **Wire-format change** instead — that path has different
+        obligations, because every change there has to land in five
+        implementations at once.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        What you are trying to do, and where TrustLayer gets in the way. Please
+        describe the situation rather than the feature — the best solution is
+        often not the one the reporter first had in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Rough is fine. An API sketch helps if you have one.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      multiple: true
+      options:
+        - core-rs (guardian / policy engine / trace store)
+        - sdks/python
+        - sdks/typescript
+        - sdks/go
+        - mcp-server
+        - dashboard
+        - skills/hermes (memory + reflections)
+        - compliance (readiness / evidence / audit packages)
+        - docs
+        - a new SDK or integration
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have already tried or ruled out
+      description: >-
+        Including "nothing yet". Knowing which workarounds failed saves a
+        reviewer from suggesting them.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints this needs to hold to
+      description: >-
+        Not a test of your proposal — a prompt. These are the properties
+        TrustLayer will not trade away, so it helps to know up front which ones
+        your idea touches.
+      options:
+        - label: Instrumentation must never take down the host agent (emit failures are swallowed)
+        - label: No data leaves the operator's infrastructure
+        - label: The guardian hot path stays in the microsecond range
+        - label: I do not think this one interacts with any of the above

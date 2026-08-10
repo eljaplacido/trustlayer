@@ -1,0 +1,68 @@
+# TrustLayer is polyglot, and Dependabot is per-manifest: an ecosystem with no
+# entry here is simply never checked. Every directory holding a lockfile or
+# manifest is listed for that reason.
+#
+# Weekly rather than daily. The security job in `ci.yml` already audits
+# production dependencies on every push, so this feed is for routine upgrades,
+# and a daily one on eight manifests reads as noise and gets muted.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "ci"]
+
+  - package-ecosystem: cargo
+    directory: /core-rs
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "rust"]
+
+  - package-ecosystem: gomod
+    directory: /sdks/go
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "go"]
+
+  - package-ecosystem: npm
+    directory: /sdks/typescript
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "typescript"]
+
+  - package-ecosystem: npm
+    directory: /dashboard
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "dashboard"]
+
+  - package-ecosystem: pip
+    directory: /sdks/python
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "python"]
+
+  - package-ecosystem: pip
+    directory: /mcp-server
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "python"]
+
+  - package-ecosystem: pip
+    directory: /compliance
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "python"]
+
+  - package-ecosystem: pip
+    directory: /skills/hermes
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "python"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "docker"]

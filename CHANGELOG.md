@@ -208,6 +208,44 @@ exist yet.
   explicitly: invoked from the repo root, mypy would otherwise find no config
   and run with defaults — a gate switched off without failing.
 
+### Added (community health)
+
+Files a contributor arriving cold looks for and, until now, did not find. The
+substance was already written — `CONTRIBUTING.md`, `AGENTS.md`,
+`docs/SECURITY.md`, `docs/RELEASE.md`, a specified wire format and a
+conformance suite. What was missing was the standard shape that makes it
+findable.
+
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1. Enforcement routes
+  through GitHub private reporting rather than a published address, matching
+  `docs/SECURITY.md` so there is one channel to keep working rather than two to
+  keep current.
+- **Issue templates** for bugs, features and wire-format changes. The
+  wire-format form states the obligation up front — five implementations, a
+  spec update and a fixture in one change set — because that is the cost
+  `CONTRIBUTING.md` asks proposers to weigh before opening a pull request, and
+  a form is where they will actually read it. The bug form asks which layer and
+  which version first: in a polyglot repository that is the difference between
+  a reproducible report and a guess. All of them say not to paste real traces.
+- **A pull-request template** carrying the `CONTRIBUTING.md` checklist. A
+  checklist nobody sees at the moment of the pull request is a checklist that
+  does not run. It asks for the `verify.sh` transcript rather than an assertion
+  that it passed — those are different claims, and only one of them is
+  checkable.
+- **`dependabot.yml`** covering all ten manifests: cargo, gomod, two npm, five
+  pip, Docker, and Actions itself. Dependabot is per-manifest, so an ecosystem
+  with no entry is simply never checked — the same shape of gap as the audit
+  below.
+- **README** gains CI, licence, wire-format and SDK badges, a Security section
+  pointing at the private reporting route, and concrete suggestions for a first
+  contribution. A new SDK is the most self-contained of them: the spec is
+  precise enough to implement against and every event type now has a fixture,
+  so conformance is largely a matter of passing a suite that already exists.
+- **`test_repo_invariants.py` checks every relative markdown link resolves**
+  across all 123 documentation files, and that the community-health files are
+  present. Documentation is most of what this repository ships, and a link that
+  404s is how it rots first: silently, and only for the reader who followed it.
+
 ### Fixed (Phase 8 — gate audit)
 
 An audit of the gates against what the documentation claims they cover. Every

@@ -116,6 +116,9 @@ def test_canonical_skill_is_not_gitignored(name: str) -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        # Exit 1 means "not ignored" — the passing case. `check=True` would
+        # raise on exactly the outcome this test wants.
+        check=False,
     )
 
     assert result.returncode == 1, (
@@ -130,6 +133,86 @@ def test_claude_settings_stay_untracked() -> None:
 
     leaked = [p for p in tracked if not p.startswith(".claude/skills/")]
     assert not leaked, f"machine-local .claude files are tracked: {leaked}"
+
+
+# --- Documentation hygiene -------------------------------------------------
+
+# Directories with no authored markdown in them. Vendored dependencies alone
+# would multiply the scan by a few thousand files and fail on links we do not
+# own.
+_NOT_OURS = {
+    ".git",
+    ".gitnexus",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".venv",
+    ".verify-venv",
+    "dist",
+    "node_modules",
+    "target",
+}
+
+_MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+
+
+def markdown_files() -> list[Path]:
+    return sorted(
+        p
+        for p in REPO_ROOT.rglob("*.md")
+        if not _NOT_OURS.intersection(p.relative_to(REPO_ROOT).parts)
+    )
+
+
+def test_there_are_markdown_files_to_check() -> None:
+    """Guard the discovery — an over-broad exclusion would vacuously pass."""
+    assert len(markdown_files()) > 50
+
+
+def test_no_markdown_file_links_to_a_path_that_does_not_exist() -> None:
+    """Documentation is most of what this repository ships, and a link that
+    404s is the way it rots first — silently, and only for the reader who
+    followed it.
+
+    Relative links only. External URLs would make this a network test, which
+    would be flaky and would fail on someone else's outage rather than on
+    anything we did.
+    """
+    broken: list[str] = []
+    for path in markdown_files():
+        for link in _MARKDOWN_LINK.findall(path.read_text(encoding="utf-8")):
+            if link.startswith(("http://", "https://", "mailto:", "#")):
+                continue
+            target = (path.parent / link.split("#")[0]).resolve()
+            if not target.exists():
+                broken.append(f"{path.relative_to(REPO_ROOT)} -> {link}")
+
+    assert not broken, "markdown links pointing at nothing:\n  " + "\n  ".join(broken)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "README.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "AGENTS.md",
+        "docs/SECURITY.md",
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/ISSUE_TEMPLATE/config.yml",
+        ".github/dependabot.yml",
+    ],
+)
+def test_community_health_file_exists(relative: str) -> None:
+    """The files a contributor arriving cold looks for first.
+
+    Listed explicitly rather than discovered, because the failure being
+    guarded against is one of them being *deleted* — which a discovery-based
+    check would simply stop noticing.
+    """
+    assert (REPO_ROOT / relative).exists(), f"{relative} is missing"
 
 
 # --- ADR hygiene -----------------------------------------------------------

@@ -1,0 +1,93 @@
+name: Bug report
+description: Something behaves differently from what the spec or docs say it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        TrustLayer is polyglot, so the single most useful thing you can tell us
+        is **which layer** and **which version**. A trace that a Go SDK emits
+        and a Rust guardian rejects is a different bug from one the Python SDK
+        never emitted correctly.
+
+
+        Please do not paste real traces. They carry prompts, responses, and
+        potentially personal data. Redact or synthesise first.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Where the wrong behaviour shows up.
+      multiple: true
+      options:
+        - core-rs (guardian / policy engine / trace store)
+        - sdks/python
+        - sdks/typescript
+        - sdks/go
+        - mcp-server
+        - dashboard
+        - skills/hermes (memory + reflections)
+        - compliance (readiness / evidence / audit packages)
+        - spec (wire format)
+        - docs
+        - build / CI / scripts
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >-
+        Package version, or the commit SHA if you are running from a clone.
+      placeholder: "trustlayer-sdk 0.1.0, or commit c03200e"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: >-
+        What you observed, and what you expected instead. If the spec says
+        something different from what you got, quote the section — that turns a
+        report into a conformance finding.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: >-
+        The smallest thing that shows it. A failing test, a synthetic event, or
+        an exact command beats a description of a pipeline we cannot run.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: >-
+        OS, and the toolchain version for the affected layer (Python, Node,
+        Rust, or Go). Include the trace-store backend if it is relevant —
+        JSONL and Postgres do not behave identically, and known gaps are
+        documented.
+      placeholder: |
+        OS:        Ubuntu 24.04
+        Toolchain: Python 3.11.9
+        Store:     JSONL
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Redacted. See the note at the top.
+      render: shell
+    validations:
+      required: false

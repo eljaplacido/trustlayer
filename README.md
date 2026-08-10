@@ -2,6 +2,11 @@
 
 **Open governance, observability, and trust for agentic AI.**
 
+[![CI](https://github.com/eljaplacido/trustlayer/actions/workflows/ci.yml/badge.svg)](https://github.com/eljaplacido/trustlayer/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+[![Wire format: v0.1](https://img.shields.io/badge/wire%20format-v0.1-informational)](./spec/v0.1/)
+[![SDKs: Python · TypeScript · Go · Rust](https://img.shields.io/badge/SDKs-Python%20%C2%B7%20TypeScript%20%C2%B7%20Go%20%C2%B7%20Rust-6aa84f)](#integration-patterns)
+
 TrustLayer is a self-hostable middleware and observability plane for
 multi-agent systems. You instrument your agents through a small SDK
 (Python, TypeScript, Go, or any HTTP client), point them at a Rust
@@ -56,7 +61,8 @@ conforming implementation.
 14. [Developer tooling & agents](#developer-tooling--agents)
 15. [Status & roadmap](#status--roadmap)
 16. [Contributing](#contributing)
-17. [License](#license)
+17. [Security](#security)
+18. [License](#license)
 
 **Start integrating:** [`docs/INTEGRATING.md`](./docs/INTEGRATING.md) — depth
 levels (observe → guard → evidence → full plane) and stack recipes
@@ -1110,6 +1116,25 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and [`AGENTS.md`](./AGENTS.md).
   `obsidian_vault/01_Architecture/` and a row in `docs/DECISIONS.md`.
 - **Tests are the contract** — new behaviour ships with a new test.
 - Run `./scripts/verify.sh test` before claiming done.
+
+Participation is governed by the
+[Contributor Covenant](./CODE_OF_CONDUCT.md).
+
+Good first contributions, if you are looking for one: a **new SDK** in a
+language not yet covered (the wire format is specified precisely enough to
+implement against, and `spec/v0.1/fixtures/` is a ready-made conformance
+suite), a **default policy** for a regulated domain under `core-rs/policies/`,
+or a **stack recipe** in [`docs/INTEGRATING.md`](./docs/INTEGRATING.md) for a
+framework you already run.
+
+---
+
+## Security
+
+Do not open a public issue for a suspected vulnerability. Use GitHub private
+vulnerability reporting. [`docs/SECURITY.md`](./docs/SECURITY.md) covers the
+reporting route, the deployment baseline (loopback by default, token required
+off-loopback, TLS terminated upstream), and what not to put in a report.
 
 ---
 

@@ -5,6 +5,16 @@ reliable, and traceable agentic AI governance. We welcome contributions
 that advance the protocol specification, reference implementations, SDKs,
 and tooling.
 
+Participation is governed by the [Code of Conduct](./CODE_OF_CONDUCT.md).
+Suspected vulnerabilities go through the private route in
+[`docs/SECURITY.md`](./docs/SECURITY.md), never a public issue.
+
+**Not sure where to start?** A new SDK in an uncovered language is the most
+self-contained contribution here: `spec/v0.1/` specifies the wire format
+precisely enough to implement against, and `spec/v0.1/fixtures/` is a
+ready-made conformance suite — every event type has a fixture, and passing all
+of them is most of what conformance means.
+
 ## Project principles
 
 1. **The wire format is the contract.** `spec/v0.1/` is the
