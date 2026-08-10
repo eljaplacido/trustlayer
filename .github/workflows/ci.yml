@@ -77,9 +77,13 @@ jobs:
         run: pip install -e ../../sdks/python[dev]
         working-directory: skills/hermes
       - name: Install Hermes test deps
-        run: pip install pytest ruff
-      - name: Ruff lint
-        run: ruff check . --config pyproject.toml
+        run: pip install pytest ruff mypy types-PyYAML
+      - name: Ruff lint and formatting
+        run: |
+          ruff format --check .
+          ruff check . --config pyproject.toml
+      - name: MyPy typecheck
+        run: mypy --config-file pyproject.toml
       - name: Pytest
         run: pytest --tb=short -q
 
@@ -112,6 +116,19 @@ jobs:
         run: cargo build --features server --release
       - name: Test
         run: cargo test --features server
+      # The optional features are shipped, documented code paths that no other
+      # step compiles: `python` is the pyo3 bridge (ADR-014) and `postgres` is
+      # the horizontally-scalable store (ADR-015). Without this, changing a
+      # signature in `guardian.rs` or `events.rs` breaks them silently and the
+      # first person to find out is a user running maturin or pointing
+      # TRUSTLAYER_DATABASE_URL at a live database. `check` rather than `test`:
+      # it needs no Python toolchain and no database, and the failure being
+      # guarded against is a compile error.
+      - name: Check optional features compile
+        run: |
+          cargo check --features python
+          cargo check --features server,postgres
+          cargo clippy --features server,postgres --all-targets -- -D warnings
 
   # ── MCP server ──────────────────────────────────────────────────────
   mcp-server:

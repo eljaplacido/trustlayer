@@ -11,3 +11,16 @@ pythonpath = ["..", "../../sdks/python/src"]
 line-length = 100
 target-version = "py311"
 exclude = ["README.md"]
+
+# Hermes was the one Python package with no typing gate, which meant the
+# package ADR-020 refactors `LLMReflector` onto was also the package where a
+# regression could not be caught. It already passed `--strict` with no
+# findings, so this records the standard the code already meets rather than
+# imposing a new one; `strict` matches the SDK and MCP server so no package is
+# the soft one.
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["."]
+exclude = ["^tests/"]
+mypy_path = ["..", "../../sdks/python/src"]

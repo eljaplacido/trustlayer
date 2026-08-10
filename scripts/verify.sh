@@ -17,6 +17,7 @@ run_tests() {
     cd "$ROOT/skills/hermes"
     ruff format --check .
     ruff check . --config pyproject.toml
+    mypy --config-file pyproject.toml
     pytest --tb=short -q
   )
   (
@@ -58,6 +59,12 @@ run_tests() {
     cargo fmt --all -- --check
     cargo clippy --features server --all-targets -- -D warnings
     cargo test --features server
+    # `python` (pyo3, ADR-014) and `postgres` (ADR-015) are shipped code paths
+    # nothing else compiles. `check` needs neither a Python toolchain nor a
+    # database, so it runs everywhere the rest of this gate does.
+    cargo check --features python
+    cargo check --features server,postgres
+    cargo clippy --features server,postgres --all-targets -- -D warnings
   )
 }
 
