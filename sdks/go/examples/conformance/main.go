@@ -12,6 +12,11 @@
 //
 //	cd sdks/go
 //	go run ./examples/conformance canonical        > ../../spec/v0.1/fixtures/event-canonical-go.json
+//	go run ./examples/conformance tool-result      > ../../spec/v0.1/fixtures/event-tool-result-go.json
+//	go run ./examples/conformance llm-call         > ../../spec/v0.1/fixtures/event-llm-call-go.json
+//	go run ./examples/conformance policy-check     > ../../spec/v0.1/fixtures/event-policy-check-go.json
+//	go run ./examples/conformance human-escalation > ../../spec/v0.1/fixtures/event-human-escalation-go.json
+//	go run ./examples/conformance agent-end        > ../../spec/v0.1/fixtures/event-agent-end-go.json
 //	go run ./examples/conformance disclosure-shown > ../../spec/v0.1/fixtures/event-disclosure-shown-go.json
 //	go run ./examples/conformance content-marked   > ../../spec/v0.1/fixtures/event-content-marked-go.json
 //	go run ./examples/conformance human-decision   > ../../spec/v0.1/fixtures/event-human-decision-go.json
@@ -34,6 +39,11 @@ import (
 // successive runs are byte-identical (spec/v0.1/fixtures/README.md).
 var fixtures = map[string]func() trustlayer.AgentTraceEvent{
 	"canonical":        canonicalToolCall,
+	"tool-result":      toolResult,
+	"llm-call":         llmCall,
+	"policy-check":     policyCheck,
+	"human-escalation": humanEscalation,
+	"agent-end":        agentEnd,
 	"disclosure-shown": disclosureShown,
 	"content-marked":   contentMarked,
 	"human-decision":   humanDecision,
@@ -100,6 +110,125 @@ func canonicalToolCall() trustlayer.AgentTraceEvent {
 		TokensPrompt:     &prompt,
 		TokensCompletion: &completion,
 	}
+	return ev
+}
+
+// toolResult closes the canonical TOOL_CALL above (spec §2.3). Same agent and
+// session, so the pair reads as one tool invocation rather than two unrelated
+// events. `error` is null on the success path — present, not omitted, because
+// a receiver distinguishing "no error" from "field absent" is the behaviour
+// W1 strict parsing exists to pin down.
+func toolResult() trustlayer.AgentTraceEvent {
+	latency := 812.0
+	ev := trustlayer.NewEvent(
+		"researcher-1",
+		"S1",
+		trustlayer.EventToolResult,
+		trustlayer.WithCynefin(trustlayer.CynefinComplex),
+		trustlayer.WithPayload(map[string]any{
+			"tool_name": "external_llm",
+			"result":    map[string]any{"summary": "Three findings, none blocking."},
+			"error":     nil,
+		}),
+		trustlayer.WithMetrics(trustlayer.Metrics{LatencyMs: &latency}),
+		trustlayer.WithTimestamp(mustTime("2026-05-25T09:00:01+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("44444444-4444-4444-8444-444444444444")
+	return ev
+}
+
+// llmCall pins a model invocation the agent drives itself (spec §2.4). The
+// prompt and response are deliberately short and synthetic: this file is
+// committed to a public repository, and §2.4 marks both fields
+// privacy-sensitive.
+func llmCall() trustlayer.AgentTraceEvent {
+	latency := 640.0
+	cost := 0.0021
+	prompt := uint32(210)
+	completion := uint32(88)
+	ev := trustlayer.NewEvent(
+		"researcher-1",
+		"S1",
+		trustlayer.EventLLMCall,
+		trustlayer.WithCynefin(trustlayer.CynefinComplicated),
+		trustlayer.WithPayload(map[string]any{
+			"model":    "claude-opus-5",
+			"prompt":   "Summarise the attached report in three bullets.",
+			"response": "1. Costs fell. 2. Latency held. 3. No policy failures.",
+		}),
+		trustlayer.WithMetrics(trustlayer.Metrics{
+			LatencyMs:        &latency,
+			CostUSD:          &cost,
+			TokensPrompt:     &prompt,
+			TokensCompletion: &completion,
+		}),
+		trustlayer.WithTimestamp(mustTime("2026-05-25T09:00:02+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+	return ev
+}
+
+// policyCheck pins the FAIL branch (spec §2.5) rather than a PASS. A fixture
+// that only ever carries PASS would let a receiver that drops `reason`
+// entirely still look conformant, because PASS is exactly the case where
+// `reason` is null. The values match what `policies/default.json` actually
+// returns for this tool.
+func policyCheck() trustlayer.AgentTraceEvent {
+	ev := trustlayer.NewEvent(
+		"researcher-1",
+		"S1",
+		trustlayer.EventPolicyCheck,
+		trustlayer.WithCynefin(trustlayer.CynefinComplex),
+		trustlayer.WithPayload(map[string]any{
+			"policy_name": "default",
+			"action":      "external_llm",
+			"result":      "FAIL",
+			"reason":      "External LLM is disabled in this policy. Use the in-house model.",
+		}),
+		trustlayer.WithTimestamp(mustTime("2026-05-25T09:00:03+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
+	return ev
+}
+
+// humanEscalation is the event `humanDecision` resolves — its trace_id is the
+// `escalation_trace_id` that fixture carries (spec §2.6). Kept as a matched
+// pair on purpose: Art. 14 effectiveness is measured on the gap between the
+// two, so a fixture set with a decision and no escalation cannot exercise it.
+func humanEscalation() trustlayer.AgentTraceEvent {
+	ev := trustlayer.NewEvent(
+		"art14-agent",
+		"S14",
+		trustlayer.EventHumanEscalation,
+		trustlayer.WithCynefin(trustlayer.CynefinComplicated),
+		trustlayer.WithPayload(map[string]any{
+			"reason": "Payment exceeds the agent's delegated authority.",
+			"context": map[string]any{
+				"amount_eur": 4800,
+				"vendor":     "vendor-2b91",
+				"tool_name":  "payments.transfer",
+			},
+		}),
+		trustlayer.WithTimestamp(mustTime("2026-08-07T10:01:18+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("77777777-7777-4777-8777-777777777777")
+	return ev
+}
+
+// agentEnd closes the researcher-1 session (spec §2.7).
+func agentEnd() trustlayer.AgentTraceEvent {
+	ev := trustlayer.NewEvent(
+		"researcher-1",
+		"S1",
+		trustlayer.EventAgentEnd,
+		trustlayer.WithCynefin(trustlayer.CynefinClear),
+		trustlayer.WithPayload(map[string]any{
+			"status":  "completed",
+			"summary": "Report summarised; one tool call blocked by policy.",
+		}),
+		trustlayer.WithTimestamp(mustTime("2026-05-25T09:00:04+00:00")),
+	)
+	ev.TraceID = uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
 	return ev
 }
 

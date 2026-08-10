@@ -1,0 +1,15 @@
+{
+  "trace_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "agent_id": "researcher-1",
+  "session_id": "S1",
+  "timestamp": "2026-05-25T09:00:03Z",
+  "event_type": "POLICY_CHECK",
+  "cynefin_domain": "COMPLEX",
+  "payload": {
+    "action": "external_llm",
+    "policy_name": "default",
+    "reason": "External LLM is disabled in this policy. Use the in-house model.",
+    "result": "FAIL"
+  },
+  "metrics": {}
+}

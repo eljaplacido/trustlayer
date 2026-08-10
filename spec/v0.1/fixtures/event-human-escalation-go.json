@@ -1,0 +1,17 @@
+{
+  "trace_id": "77777777-7777-4777-8777-777777777777",
+  "agent_id": "art14-agent",
+  "session_id": "S14",
+  "timestamp": "2026-08-07T10:01:18Z",
+  "event_type": "HUMAN_ESCALATION",
+  "cynefin_domain": "COMPLICATED",
+  "payload": {
+    "context": {
+      "amount_eur": 4800,
+      "tool_name": "payments.transfer",
+      "vendor": "vendor-2b91"
+    },
+    "reason": "Payment exceeds the agent's delegated authority."
+  },
+  "metrics": {}
+}

@@ -302,6 +302,114 @@ fn parses_human_decision_fixture() {
     assert_eq!(event.metrics.latency_ms, Some(41200.0));
 }
 
+/// spec §2.3 — the close of a tool invocation.
+#[test]
+fn parses_tool_result_fixture() {
+    let event = load_fixture("event-tool-result-go.json");
+
+    assert_eq!(event.event_type, EventType::ToolResult);
+    assert_eq!(
+        event.payload.get("tool_name").and_then(|v| v.as_str()),
+        Some("external_llm")
+    );
+    // Present-and-null, not absent. A receiver that silently drops JSON nulls
+    // cannot tell "the tool succeeded" from "nobody recorded an outcome", and
+    // on the failure path that difference is the whole signal.
+    assert_eq!(
+        event.payload.get("error"),
+        Some(&serde_json::Value::Null),
+        "error must survive as an explicit null"
+    );
+}
+
+/// spec §2.4 — a model invocation the agent drives itself.
+#[test]
+fn parses_llm_call_fixture() {
+    let event = load_fixture("event-llm-call-go.json");
+
+    assert_eq!(event.event_type, EventType::LlmCall);
+    assert_eq!(
+        event.payload.get("model").and_then(|v| v.as_str()),
+        Some("claude-opus-5")
+    );
+    // Cost and token accounting is the reason this event type is separate
+    // from TOOL_CALL; if the metrics block does not survive, it is just an
+    // expensive log line.
+    assert_eq!(event.metrics.tokens_prompt, Some(210));
+    assert_eq!(event.metrics.tokens_completion, Some(88));
+    assert_eq!(event.metrics.cost_usd, Some(0.0021));
+}
+
+/// spec §2.5 — the guardian verdict, recorded in the trace stream itself.
+#[test]
+fn parses_policy_check_fixture() {
+    let event = load_fixture("event-policy-check-go.json");
+
+    assert_eq!(event.event_type, EventType::PolicyCheck);
+    assert_eq!(
+        event.payload.get("result").and_then(|v| v.as_str()),
+        Some("FAIL")
+    );
+    // The fixture pins the FAIL branch precisely so `reason` is non-null here.
+    // On PASS it is null, so a PASS-only fixture would let an implementation
+    // that drops the field entirely still look conformant.
+    assert!(event
+        .payload
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .is_some_and(|r| !r.is_empty()));
+}
+
+/// spec §2.6 — the agent hands control to a human.
+#[test]
+fn parses_human_escalation_fixture() {
+    let event = load_fixture("event-human-escalation-go.json");
+
+    assert_eq!(event.event_type, EventType::HumanEscalation);
+    assert!(event
+        .payload
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .is_some_and(|r| !r.is_empty()));
+}
+
+/// The escalation and the decision that resolves it are one Art. 14 record.
+///
+/// `human_decision.payload.escalation_trace_id` MUST name the escalation's
+/// `trace_id`. If the two fixtures drift apart, the pair silently stops
+/// exercising the join that Art. 14 effectiveness is measured across, while
+/// both files still parse perfectly well on their own.
+#[test]
+fn the_escalation_and_decision_fixtures_are_a_matched_pair() {
+    let escalation = load_fixture("event-human-escalation-go.json");
+    let decision = load_fixture("event-human-decision-go.json");
+
+    assert_eq!(
+        decision
+            .payload
+            .get("escalation_trace_id")
+            .and_then(|v| v.as_str()),
+        Some(escalation.trace_id.to_string().as_str()),
+        "human-decision must point at the human-escalation fixture"
+    );
+    assert!(
+        decision.timestamp > escalation.timestamp,
+        "a decision cannot precede the escalation it resolves"
+    );
+}
+
+/// spec §2.7 — the close of a session.
+#[test]
+fn parses_agent_end_fixture() {
+    let event = load_fixture("event-agent-end-go.json");
+
+    assert_eq!(event.event_type, EventType::AgentEnd);
+    assert_eq!(
+        event.payload.get("status").and_then(|v| v.as_str()),
+        Some("completed")
+    );
+}
+
 /// spec §2.11 — the configuration a session ran under.
 #[test]
 fn parses_harness_snapshot_fixture() {

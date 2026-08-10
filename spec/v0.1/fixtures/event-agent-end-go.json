@@ -1,0 +1,13 @@
+{
+  "trace_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  "agent_id": "researcher-1",
+  "session_id": "S1",
+  "timestamp": "2026-05-25T09:00:04Z",
+  "event_type": "AGENT_END",
+  "cynefin_domain": "CLEAR",
+  "payload": {
+    "status": "completed",
+    "summary": "Report summarised; one tool call blocked by policy."
+  },
+  "metrics": {}
+}

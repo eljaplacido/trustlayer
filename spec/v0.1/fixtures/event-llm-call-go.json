@@ -1,0 +1,19 @@
+{
+  "trace_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "agent_id": "researcher-1",
+  "session_id": "S1",
+  "timestamp": "2026-05-25T09:00:02Z",
+  "event_type": "LLM_CALL",
+  "cynefin_domain": "COMPLICATED",
+  "payload": {
+    "model": "claude-opus-5",
+    "prompt": "Summarise the attached report in three bullets.",
+    "response": "1. Costs fell. 2. Latency held. 3. No policy failures."
+  },
+  "metrics": {
+    "cost_usd": 0.0021,
+    "latency_ms": 640,
+    "tokens_completion": 88,
+    "tokens_prompt": 210
+  }
+}

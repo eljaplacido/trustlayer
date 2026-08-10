@@ -47,6 +47,11 @@ be enforced by a rule that does not match the same events.
 | File | Subject | Producer | Reproduce (from `sdks/go/`) |
 |---|---|---|---|
 | `event-canonical-go.json` | `TOOL_CALL` with full metrics | Go SDK | `go run ./examples/conformance canonical > ../../spec/v0.1/fixtures/event-canonical-go.json` |
+| `event-tool-result-go.json` | `TOOL_RESULT` closing the canonical call, `error` an explicit null (§2.3) | Go SDK | `go run ./examples/conformance tool-result > ../../spec/v0.1/fixtures/event-tool-result-go.json` |
+| `event-llm-call-go.json` | `LLM_CALL` with token and cost accounting (§2.4) | Go SDK | `go run ./examples/conformance llm-call > ../../spec/v0.1/fixtures/event-llm-call-go.json` |
+| `event-policy-check-go.json` | `POLICY_CHECK`, the `FAIL` branch so `reason` is non-null (§2.5) | Go SDK | `go run ./examples/conformance policy-check > ../../spec/v0.1/fixtures/event-policy-check-go.json` |
+| `event-human-escalation-go.json` | `HUMAN_ESCALATION`, the event `event-human-decision-go.json` resolves (§2.6) | Go SDK | `go run ./examples/conformance human-escalation > ../../spec/v0.1/fixtures/event-human-escalation-go.json` |
+| `event-agent-end-go.json` | `AGENT_END` closing the `researcher-1` session (§2.7) | Go SDK | `go run ./examples/conformance agent-end > ../../spec/v0.1/fixtures/event-agent-end-go.json` |
 | `event-disclosure-shown-go.json` | `DISCLOSURE_SHOWN`, Art. 50(1) (§2.8) | Go SDK | `go run ./examples/conformance disclosure-shown > ../../spec/v0.1/fixtures/event-disclosure-shown-go.json` |
 | `event-content-marked-go.json` | `CONTENT_MARKED` with a `verification` block, Art. 50(2) (§2.9) | Go SDK | `go run ./examples/conformance content-marked > ../../spec/v0.1/fixtures/event-content-marked-go.json` |
 | `event-human-decision-go.json` | `HUMAN_DECISION`, the outcome of an escalation, Art. 14 (§2.10) | Go SDK | `go run ./examples/conformance human-decision > ../../spec/v0.1/fixtures/event-human-decision-go.json` |
@@ -68,3 +73,18 @@ be enforced by a rule that does not match the same events.
    implementations, but a fixture with no *subject-specific* assertion
    only proves it parses — not that it carries the payload the spec
    section describes.
+
+## Every event type must appear here
+
+`compliance/tests/test_event_type_lockstep.py` asserts that each of the
+event types declared in `core-rs` `EventType` is carried by at least one
+committed fixture, and separately that the Python, TypeScript and Go SDK
+enums match that same reference set.
+
+Both checks exist because the original G0 fix left a hole. It pinned the
+Rust enum to the spec prose and to `compliance/schemas/control.schema.json`
+— so a new event type added to those three places passed, while the four
+SDKs stayed behind and nothing failed. The SDKs were covered only
+indirectly, by round-tripping the files in this directory, which catches a
+missing type *only if someone also remembered to add a fixture for it*.
+Five of the eleven types had none.

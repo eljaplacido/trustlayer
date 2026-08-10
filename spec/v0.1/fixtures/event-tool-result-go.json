@@ -1,0 +1,18 @@
+{
+  "trace_id": "44444444-4444-4444-8444-444444444444",
+  "agent_id": "researcher-1",
+  "session_id": "S1",
+  "timestamp": "2026-05-25T09:00:01Z",
+  "event_type": "TOOL_RESULT",
+  "cynefin_domain": "COMPLEX",
+  "payload": {
+    "error": null,
+    "result": {
+      "summary": "Three findings, none blocking."
+    },
+    "tool_name": "external_llm"
+  },
+  "metrics": {
+    "latency_ms": 812
+  }
+}
