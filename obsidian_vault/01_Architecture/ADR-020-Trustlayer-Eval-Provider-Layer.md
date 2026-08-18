@@ -2,7 +2,8 @@
 adr: 20
 title: trustlayer-eval — Pluggable Evaluator Providers with Grounded Output
 date: 2026-08-02
-status: proposed
+status: accepted
+accepted: 2026-08-16
 ---
 
 # ADR-020 — `trustlayer-eval`: Pluggable Evaluator Providers with Grounded Output
@@ -225,3 +226,43 @@ since grown.
   judgement is correct. Every finding carries
   `human_review_required=True` by default and nothing in the platform
   clears that flag automatically.
+
+## Implementation note — 2026-08-16
+
+Shipped as Slice 8.4. The decisions above are unchanged; this section records
+what implementation settled that the proposal left open.
+
+**A seventh role.** `insight_advisor` was added alongside the six in §4 — the
+operator-facing chat the dashboard's Advisor pane calls. It carries the same
+grounding contract: it answers from cited events or says it cannot. It is
+listed here rather than folded silently into §4 because the ADR named six.
+
+**Two providers the proposal did not.** `AgentcenterProvider` routes through the
+local agentcenter gateway so evaluator calls land in its KPI store alongside
+every other local workload. It is the only provider with a fallback — to a
+direct `OllamaProvider` when the gateway is down — and that is narrow on
+purpose: both are local runtimes on the same machine, so the fallback cannot
+change a run's residency. No other provider falls back to anything, because
+silently substituting a different backend would make the run record's
+`provider` field a lie.
+
+**Guardian unreachability is a refusal, not a pass.** §6 says a `FAIL` verdict
+refuses the call. It did not say what an *unreachable* guardian does. The SDK's
+`GuardianClient` defaults to `fail_open=True`, which is right for instrumented
+agents — telemetry must never take down a host. It is wrong here: this is the
+one caller whose purpose is enforcing that distinction, so the evaluator layer
+constructs its client with `fail_open=False` and refuses to dispatch an
+unchecked call. Emission failures are still swallowed.
+
+**Source citations with no repository root are demoted, not accepted.** §3
+rule 2 requires cited paths to resolve. When no root is supplied there is
+nothing to resolve them against; accepting them at face value would let an
+unconfigured caller publish source citations nothing ever verified, so
+confidence drops to `LOW` instead.
+
+**Anthropic's sampling parameters are dropped, not forwarded.** `temperature`,
+`top_p`, and `top_k` were removed from the current Claude models and now return
+400. The `ChatProvider` protocol carries a `temperature` because local backends
+need one, so `AnthropicProvider` drops it rather than forwarding it into a
+rejected request. A safety refusal (HTTP 200 with `stop_reason: "refusal"`) is
+raised as a provider error rather than read as an empty answer.

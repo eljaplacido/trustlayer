@@ -96,7 +96,7 @@ Each is verified against the code, not inferred.
 | G8 | **`CONTENT_MARKED` records a claim, not a fact.** No verification that the artifact carries a real marking. | `article-50-v1.yaml` | 019 |
 | G9 | **Controls are not role-filtered.** `provider_role` exists in the system schema but no control carries `applies_to_roles`. | `system.schema.json` | 018 |
 | G10 | **Agentic failure modes are not modelled.** No delegation depth, sub-agent spawning, goal drift, tool-privilege flow, or escalation *outcome*. | absent | 019 |
-| G11 | **No evaluator layer.** `llm_reflector.py` is the right pattern but is Hermes-private and single-purpose. | `skills/hermes/llm_reflector.py` | 020 |
+| G11 | ~~**No evaluator layer.** `llm_reflector.py` is the right pattern but is Hermes-private and single-purpose.~~ **Closed 2026-08-16** by `evaluators/`; `llm_reflector.py` now calls it. | `skills/hermes/llm_reflector.py` | 020 |
 
 ---
 
@@ -311,7 +311,7 @@ Ordered by dependency and by regulatory urgency (Art. 50(2) marking lands
 | — | **shipped** | Remediation guidance engine. Unplanned; came out of dogfooding 8.0. | 024 | 8.0 |
 | **8.2** | **shipped** *(streaming deferred)* | Evidence query v2: MatchSpec reuse, sequence/coverage/absence/resolution predicates, assurance tiers, role and date filtering, `after_seq` pagination. | 018 | 8.1 |
 | **8.3** | **partial** | Agentic trust model. Shipped: `HARNESS_SNAPSHOT` + `HUMAN_DECISION` event types, optional `parent_trace_id`. Open: workflow graph metrics, trust envelope, substantial-modification change records, marking verification. | 019 | 8.2 |
-| **8.4** | not started | `evaluators/` package: provider abstraction, egress policy, redaction, grounding validator, `EvaluatorRun` records, control judge + adversarial verifier. Hermes `LLMReflector` refactored onto it without breaking its ADR-013 API. | 020 | 8.2 |
+| **8.4** | **shipped** | `evaluators/` package: provider abstraction (null/ollama/agentcenter/openai-compatible/anthropic), egress policy, redaction, grounding validator, `EvaluatorRun` records, all six roles plus an operator-facing `insight_advisor`, and the dashboard Advisor pane. Hermes `LLMReflector` refactored onto it with its ADR-013 API and tests unchanged. | 020 | 8.2 |
 | **8.5** | not started | Annex IV document model, per-claim provenance, Art. 13 / Art. 72 / Art. 47 generators, ISO 42001 + NIST AI RMF crosswalks, document author + code emitter roles. | 021 | 8.4 |
 | **8.6** | not started | Art. 73 incident pipeline with statutory clocks and Commission template export. | 022 | 8.3, 8.5 |
 | **8.7** | not started | Agentic workbench UIX: design tokens, hash routing, proposal diff, run cards, egress/assurance badges, NL→query compiler, MCP proposal tools. | 023 | 8.4, 8.5 |

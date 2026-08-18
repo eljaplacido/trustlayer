@@ -5,9 +5,56 @@
 
 Phase 8 detail is in the roadmap below and in
 [`docs/PHASE-8-DESIGN.md`](PHASE-8-DESIGN.md). Shipped so far: slices 8.0,
-8.1, 8.2, the remediation guidance engine (ADR-024), and part of 8.3.
+8.1, 8.2, 8.4, the remediation guidance engine (ADR-024), and part of 8.3.
 Named deferrals: Postgres integrity parity, streaming evidence evaluation,
 and the ADR-019 workflow graph.
+
+## 🧠 Slice 8.4 — The Evaluator Layer (ADR-020, shipped 2026-08-16)
+
+`evaluators/` — the package that lets an operator point their own model at
+their traces and ask about them. It closes gap G11.
+
+**What's shipped:**
+- **Provider layer** (`providers/`) — `NullProvider` (the default: refuses every
+  call, so an unconfigured install never makes a surprise network request),
+  `OllamaProvider`, `AgentcenterProvider`, `OpenAICompatibleProvider`, and
+  `AnthropicProvider`. Every backend is spoken to over its HTTP API; no provider
+  SDK is vendored. Every one is tested through `httpx.MockTransport` — no test
+  in the package touches the network.
+- **Grounding validator** (`grounding.py`) — every finding must cite `trace_id`s
+  that exist in the evidence window it was given. Failures are **rejected, not
+  repaired**: one retry carrying the rejection reason, then the finding is
+  dropped and counted. There is no configuration that disables this.
+- **Egress policy** (`egress.py`) — `data_classes` × provider `residency`.
+  Personal or special-category data plus a third-country provider is a refusal,
+  overridable only by an `egress_override` in `system.yaml` carrying both a
+  safeguard reference and a named approver.
+- **Redaction** (`redaction.py`) — envelope plus an allowlisted payload subset.
+  Raw prompts and completions are opt-in. What was withheld is recorded as
+  field paths and a count, never values.
+- **Seven roles** (`roles/`) — the six from ADR-020 §4 plus `insight_advisor`,
+  the operator-facing chat. Prompts are versioned files whose hash is recorded
+  in every run.
+- **Run records** (`runs.py`) — `EvaluatorRun` JSONL under `compliance/runs/`,
+  pinning the query *and* a hash of its result so a past finding is
+  re-checkable against a log that has since grown.
+- **Advisor pane** (`dashboard/src/AdvisorPane.tsx`) — the chat surface. States
+  which model answered and where inference happens *before* the operator types,
+  renders each finding's citations, and reports how many findings were
+  suppressed as ungrounded.
+- **Self-governed** — every evaluator call emits `AgentTraceEvent`s and is
+  policy-checked before dispatch. Unlike the SDK bridges, the guardian client
+  here is `fail_open=False`: an unreachable guardian refuses the call rather
+  than silently passing it.
+- **Hermes refactored onto it** — `LLMReflector` no longer carries its own copy
+  of the Ollama wire format. Its ADR-013 API is unchanged and its 57 tests pass
+  unmodified, which was the stated acceptance test.
+
+**Stated limits:** a grounded finding is one whose citations exist and support
+its shape — *not* one known to be correct. Every finding carries
+`human_review_required=True` and nothing in the platform clears it. Findings
+will sometimes be *missing* rather than wrong, because the validator drops what
+it cannot support; the count is surfaced in the UI.
 
 ## 📝 Phase 7 — EU AI Act Compliance Framework (superseded by Phase 8)
 Building the compliance layer on top of TrustLayer's evidence layer. This enables

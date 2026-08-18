@@ -10,6 +10,78 @@ and versions adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Added (Phase 8 — EU AI Act compliance depth)
 
+**Slice 8.4 — the evaluator layer (ADR-020, gap G11).** New top-level package
+`evaluators/` (`trustlayer_eval`), letting an operator point their own model —
+local or cloud — at their traces and ask about them.
+- **Pluggable providers**, each spoken to over its own HTTP API with no vendored
+  SDK: `null` (the default — refuses every call, so an unconfigured install
+  never makes an unexpected network request), `ollama`, `agentcenter`,
+  `openai_compat`, and `anthropic`. Selected by `TRUSTLAYER_EVAL_PROVIDER`.
+  Residency is **declared by config, never inferred from a URL**; unset is
+  `UNKNOWN`, which the egress policy treats as third-country.
+- **Grounding contract.** Every finding cites `trace_id`s that must exist in the
+  evidence window supplied to the model. A finding that fails is rejected, not
+  repaired — one retry carrying the rejection reason, then it is dropped and
+  counted in `ungrounded_rejected`. `cited_trace_ids` has `min_length=1` at the
+  type level, so an uncited finding is not representable. No configuration
+  disables any of this.
+- **Egress policy and redaction.** Personal or special-category data bound for a
+  third-country provider is refused unless `system.yaml` carries an
+  `egress_override` with both a safeguard reference and a named approver — an
+  auditable decision rather than a flag. Raw prompts and completions are opt-in;
+  redaction records field paths and counts, never values.
+- **Seven evaluator roles** — the six in ADR-020 §4 plus `insight_advisor` for
+  the dashboard. Prompts are versioned files, hashed into every run record, so a
+  prompt edit is visible in provenance.
+- **`EvaluatorRun` records** as JSONL under `compliance/runs/`, pinning the
+  evidence query *and* a hash of its result so a past finding stays re-checkable
+  against a log that has since grown. The hash is order-independent.
+- **Advisor pane** in the dashboard: states the provider, model, and residency
+  before the operator types, renders per-finding citations, and reports how many
+  findings were suppressed as ungrounded.
+- **Self-governed (P8).** Evaluator calls emit `AgentTraceEvent`s and are
+  policy-checked before dispatch. The guardian client here is `fail_open=False`
+  — unlike the SDK bridges, an unreachable guardian refuses the call instead of
+  defaulting to PASS, because this is the caller whose purpose is that
+  distinction. Emission failures are still logged and swallowed.
+- **Cost bounded by construction.** The control judge sees only `INDETERMINATE`
+  controls, asserted by a test, so a fan-out regression fails CI rather than a
+  customer's bill.
+- `./scripts/verify.sh evaluators`, a matching `verify.sh test` block, and a CI
+  job. `pip-audit` now covers `evaluators/requirements-release.txt`.
+- New `evaluators` agent skill with refusal conditions (ADR-023 §7 symlink).
+
+### Changed
+
+- **`skills/hermes/llm_reflector.py` refactored onto the evaluator provider
+  layer** (ADR-020). Hermes no longer carries its own copy of the Ollama wire
+  format. Its ADR-013 public API — `summarise_session`, `synthesise`,
+  `reflect_narrative`, `last_error`, and the constructor keywords — is
+  unchanged, and its 57 existing tests pass **unmodified**; that was the stated
+  acceptance test for the refactor.
+
+### Fixed
+
+- **Python SDK emitted `"parent_trace_id": null` for events that had no parent**,
+  which every v0.1 collector built before the field rejects outright: the
+  envelope is closed (spec §1.2), so an unknown top-level key is a 422 for the
+  whole event. The Rust core (`skip_serializing_if`), Go (`omitempty`), and
+  TypeScript (optional) all omit it and each states that an emitter which does
+  not set the field produces byte-identical v0.1 output; the Python SDK was the
+  one that did not keep that promise. Found by a running v0.1 guardian returning
+  422 for every event this SDK sent. Go asserted the property in
+  `TestParentTraceIDIsOmittedWhenUnset`; the Python suite only ever tested the
+  old-wire/new-parser direction, so nothing failed when the bytes changed —
+  `test_unset_parent_trace_id_is_not_serialised` now covers it.
+- `ruff` is unpinned across the repository and 0.16 stopped reporting `E402`
+  for imports gated behind `pytest.importorskip` while 0.15 still does, so the
+  Python SDK's lint gate passed or failed depending on which version the machine
+  happened to have. Pinned the behaviour with a `per-file-ignores` entry.
+- `CONTRIBUTING.md`'s setup instructions could not produce a green
+  `verify.sh test`: nothing installed `types-PyYAML`, which Hermes'
+  `mypy --strict` gate needs. CI installed it explicitly; the documented local
+  path did not.
+
 **Slice 8.0 — event-type lockstep (gap G0).** `compliance/schemas/control.schema.json`
 enumerated seven event types while `core-rs` `EventType` had nine, so loading
 `article-50-v1.yaml` raised `ValidationError` — the Art. 50 control catalog was
