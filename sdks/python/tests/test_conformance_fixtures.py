@@ -15,12 +15,13 @@ Rust test resistant to the drift that produced gap G0.
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 import pydantic
 import pytest
 
-from trustlayer import AgentTraceEvent
+from trustlayer import AgentTraceEvent, EventType
 
 FIXTURE_DIR = Path(__file__).resolve().parents[3] / "spec" / "v0.1" / "fixtures"
 
@@ -101,3 +102,37 @@ def test_parent_trace_id_round_trips_when_present() -> None:
     )
 
     assert str(event.parent_trace_id) == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+
+def test_unset_parent_trace_id_is_not_serialised() -> None:
+    """New emitter, old reader — the direction that actually breaks.
+
+    The envelope is closed (spec §1.2), so a collector built before
+    ``parent_trace_id`` existed rejects the whole event if the key is present,
+    even as null. Emitting ``"parent_trace_id": null`` therefore turns a MINOR
+    addition (§1.7) into a hard break against every collector not yet
+    redeployed — which is exactly what a running v0.1 guardian did, returning
+    422 for every event this SDK sent.
+
+    Go asserts this same property in ``TestParentTraceIDIsOmittedWhenUnset``;
+    the Python SDK only ever tested the old-wire/new-parser direction, so
+    nothing here failed when the bytes changed.
+    """
+    event = AgentTraceEvent(agent_id="a", session_id="s", event_type=EventType.TOOL_CALL)
+
+    assert "parent_trace_id" not in event.model_dump()
+    assert "parent_trace_id" not in event.model_dump(mode="json")
+    assert "parent_trace_id" not in json.loads(event.model_dump_json())
+
+
+def test_set_parent_trace_id_is_still_serialised() -> None:
+    """Omission must be conditional on absence, not unconditional."""
+    parent = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    event = AgentTraceEvent(
+        agent_id="a",
+        session_id="s",
+        event_type=EventType.TOOL_CALL,
+        parent_trace_id=parent,
+    )
+
+    assert event.model_dump(mode="json")["parent_trace_id"] == str(parent)

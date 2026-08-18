@@ -11,7 +11,8 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
+from pydantic_core.core_schema import SerializerFunctionWrapHandler
 
 
 class EventType(str, Enum):
@@ -98,3 +99,25 @@ class AgentTraceEvent(BaseModel):
     cynefin_domain: CynefinDomain = CynefinDomain.DISORDER
     payload: dict[str, Any] = Field(default_factory=dict)
     metrics: Metrics = Field(default_factory=Metrics)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_parent(self, handler: SerializerFunctionWrapHandler) -> Any:
+        """Drop ``parent_trace_id`` from the wire when it was never set.
+
+        The envelope is closed (spec §1.2): a receiver MUST reject an event
+        carrying an unknown top-level field. So an emitter that serialises
+        ``"parent_trace_id": null`` is rejected outright by every collector
+        built before the field existed, which turns what §1.7 classifies as a
+        MINOR addition into a hard break for anyone who has not redeployed.
+
+        The Rust core avoids this with ``skip_serializing_if``, Go with
+        ``omitempty``, and TypeScript by leaving the key ``undefined``; each
+        states that an emitter which does not set the field produces
+        byte-identical output to v0.1. This makes the Python SDK keep the same
+        promise, at the model rather than in one caller, so the guarantee
+        holds for anyone who serialises an event themselves.
+        """
+        data = handler(self)
+        if isinstance(data, dict) and data.get("parent_trace_id") is None:
+            data.pop("parent_trace_id", None)
+        return data
