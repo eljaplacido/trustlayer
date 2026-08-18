@@ -1,3 +1,4 @@
+import { AdvisorPane } from "./AdvisorPane.js";
 import { CompliancePane } from "./CompliancePane.js";
 import { MetricsPane } from "./MetricsPane.js";
 import { OverviewPane } from "./OverviewPane.js";
@@ -96,6 +97,20 @@ export function App() {
         }
       >
         <CompliancePane />
+      </Pane>
+
+      <Pane
+        title="Advisor"
+        blurb={
+          <>
+            Ask your own model about these insights, and ask it to propose
+            fixes (ADR-020). Every claim cites the events that support it;
+            claims that cannot be grounded in the evidence window are
+            suppressed rather than shown.
+          </>
+        }
+      >
+        <AdvisorPane />
       </Pane>
     </main>
   );

@@ -102,6 +102,110 @@ export async function fetchReflection(
   return getJson<Reflection>(url, signal);
 }
 
+/**
+ * ADR-020: the evaluator service. Separate from the trace store because the
+ * dashboard is a static bundle — it cannot hold a provider credential, so the
+ * only place a model endpoint is configured is server-side, which is also what
+ * keeps the egress policy enforceable.
+ */
+export function evaluatorBaseUrl(): string {
+  const fromEnv = import.meta.env.VITE_TRUSTLAYER_EVAL_URL as
+    | string
+    | undefined;
+  return fromEnv ?? "http://127.0.0.1:8091";
+}
+
+export interface AdvisorHealth {
+  status: string;
+  provider: string;
+  model: string;
+  residency: string;
+  available: boolean;
+  guardian_enabled: boolean;
+}
+
+export interface AdvisorModels {
+  provider: string;
+  current: string;
+  models: string[];
+}
+
+export interface AdvisorFinding {
+  claim: string;
+  cited_trace_ids: string[];
+  confidence: string;
+  severity: string;
+  human_review_required: boolean;
+  remediation?: string | null;
+}
+
+export interface AdvisorRun {
+  run_id: string;
+  role: string;
+  provider: string;
+  model: string;
+  duration_ms: number;
+  findings: AdvisorFinding[];
+  ungrounded_rejected: number;
+  narrative?: string | null;
+  evidence_window: { event_count: number; result_hash: string };
+}
+
+export interface AdvisorReply {
+  run: AdvisorRun;
+  provider: string;
+  model: string;
+  residency: string;
+  fell_back: boolean;
+}
+
+export async function fetchAdvisorHealth(
+  signal?: AbortSignal,
+): Promise<AdvisorHealth> {
+  return getJson<AdvisorHealth>(`${evaluatorBaseUrl()}/health`, signal);
+}
+
+export async function fetchAdvisorModels(
+  signal?: AbortSignal,
+): Promise<AdvisorModels> {
+  return getJson<AdvisorModels>(`${evaluatorBaseUrl()}/v1/models`, signal);
+}
+
+export async function askAdvisor(
+  question: string,
+  filters: { agent_id?: string; session_id?: string; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<AdvisorReply> {
+  const url = `${evaluatorBaseUrl()}/v1/advisor/chat`;
+  const res = await fetch(url, {
+    method: "POST",
+    signal,
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ question, ...filters }),
+  });
+  if (!res.ok) {
+    // The service distinguishes refusals from failures, and the operator needs
+    // to see which: 451 is an egress refusal, 403 a policy denial. Surfacing
+    // them as a generic error would hide the governance decision that is the
+    // whole point of routing the call through this service.
+    let detail = "";
+    try {
+      const body = (await res.json()) as { detail?: unknown };
+      detail = typeof body.detail === "string" ? body.detail : "";
+    } catch {
+      detail = "";
+    }
+    const prefix =
+      res.status === 451
+        ? "Refused by egress policy"
+        : res.status === 403
+          ? "Refused by guardian policy"
+          : `HTTP ${res.status}`;
+    throw new Error(detail ? `${prefix}: ${detail}` : prefix);
+  }
+  return (await res.json()) as AdvisorReply;
+}
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal, headers: authHeaders() });
   if (!res.ok) {
