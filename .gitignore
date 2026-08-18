@@ -80,3 +80,14 @@ remediation.md
 compliance-report.json
 .routekit/
 .verify-venv/
+
+# Evaluator run records (ADR-020 §7). These are runtime artifacts containing
+# real trace ids and findings from whatever system was scanned — evidence about
+# a deployment, not source. Kept out of the repo so a stray `git add -A` after
+# running the advisor cannot commit someone's trace data.
+#
+# Depth-independent on purpose: the default location resolves against the
+# writing process's working directory, so a run started from `dashboard/` or
+# `evaluators/` leaves records there too. Anchoring this to the repo root
+# would ignore one of those and silently track the rest.
+**/compliance/runs/

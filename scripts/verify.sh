@@ -41,7 +41,7 @@ run_tests() {
     ruff format --check .
     ruff check src/ tests/
     mypy src/trustlayer_mcp
-    PYTHONPATH=src:../sdks/python/src:../skills python3 -m pytest --tb=short -q
+    PYTHONPATH=src:../sdks/python/src:../skills:../evaluators/src python3 -m pytest --tb=short -q
   )
   (
     cd "$ROOT/compliance"
@@ -52,6 +52,15 @@ run_tests() {
     # working directory, finds none, and silently runs with defaults, which
     # would leave the Phase 8 typing gate switched off without failing.
     (cd "$ROOT" && MYPYPATH=. mypy --config-file compliance/pyproject.toml -p compliance.src)
+    python3 -m pytest --tb=short -q
+  )
+  (
+    cd "$ROOT/evaluators"
+    ruff format --check src/ tests/
+    ruff check src/ tests/
+    # MYPYPATH rather than a config entry: the SDK is a sibling package in this
+    # repo, not an installed dependency of the evaluators package.
+    MYPYPATH="$ROOT/sdks/python/src" mypy --config-file pyproject.toml
     python3 -m pytest --tb=short -q
   )
   (
@@ -108,6 +117,7 @@ run_security() {
     python3 -m pip_audit -r sdks/python/requirements-release.txt
     python3 -m pip_audit -r mcp-server/requirements-release.txt
     python3 -m pip_audit -r compliance/requirements-release.txt
+    python3 -m pip_audit -r evaluators/requirements-release.txt
   )
 }
 
@@ -118,8 +128,11 @@ case "$MODE" in
   compliance)
     (cd "$ROOT/compliance" && python3 -m pytest --tb=short -q)
     ;;
+  evaluators)
+    (cd "$ROOT/evaluators" && python3 -m pytest --tb=short -q)
+    ;;
   *)
-    printf 'Usage: %s [all|test|security|compliance]\n' "$0" >&2
+    printf 'Usage: %s [all|test|security|compliance|evaluators]\n' "$0" >&2
     exit 64
     ;;
 esac

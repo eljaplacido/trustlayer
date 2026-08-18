@@ -76,6 +76,10 @@ jobs:
       - name: Install Python SDK (dependency)
         run: pip install -e ../../sdks/python[dev]
         working-directory: skills/hermes
+      # ADR-020: LLMReflector's transport now lives in the evaluators package.
+      - name: Install evaluators (dependency)
+        run: pip install -e ../../evaluators
+        working-directory: skills/hermes
       - name: Install Hermes test deps
         run: pip install pytest ruff mypy types-PyYAML
       - name: Ruff lint and formatting
@@ -84,6 +88,37 @@ jobs:
           ruff check . --config pyproject.toml
       - name: MyPy typecheck
         run: mypy --config-file pyproject.toml
+      - name: Pytest
+        run: pytest --tb=short -q
+
+  # ── Evaluators (ADR-020) ────────────────────────────────────────────
+  evaluators:
+    name: "Evaluators (py${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: evaluators
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          pip install -e ../sdks/python
+          pip install -e .[dev,service]
+      - name: Ruff lint and formatting
+        run: |
+          ruff format --check src/ tests/
+          ruff check src/ tests/
+      # The `service` extra is installed above on purpose: without FastAPI on
+      # the path mypy cannot see through the decorators, and the HTTP surface
+      # would be the one module the strict gate did not actually check.
+      - name: MyPy typecheck
+        run: MYPYPATH=../sdks/python/src mypy --config-file pyproject.toml
       - name: Pytest
         run: pytest --tb=short -q
 
@@ -148,13 +183,16 @@ jobs:
       - name: Install
         run: |
           pip install -e ../sdks/python[dev]
+          pip install -e ../evaluators
           pip install -e .[dev]
       - name: Ruff lint
         run: ruff check src/ tests/
+      # This server imports Hermes, whose LLM transport moved onto the
+      # evaluators package in ADR-020 — hence the extra path entry below.
       - name: MyPy typecheck
         run: mypy src/trustlayer_mcp
       - name: Pytest
-        run: PYTHONPATH=src:../sdks/python/src:../skills python -m pytest --tb=short -q
+        run: PYTHONPATH=src:../sdks/python/src:../skills:../evaluators/src python -m pytest --tb=short -q
 
   # ── Go SDK ───────────────────────────────────────────────────────────
   go-sdk:

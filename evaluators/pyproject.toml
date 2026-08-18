@@ -1,0 +1,49 @@
+[project]
+name = "trustlayer-eval"
+version = "0.1.0"
+description = "Pluggable evaluator providers with grounded output for TrustLayer (ADR-020)."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.25.0",
+    "pydantic>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "types-PyYAML",
+]
+# The HTTP surface the dashboard's Advisor pane talks to. Optional so the
+# package stays importable — and testable — without a web server installed;
+# `trustlayer-eval-serve` is the only thing that needs it.
+service = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.scripts]
+trustlayer-eval-serve = "trustlayer_eval.service:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../sdks/python/src"]
+
+# Phase 8 engineering contract (docs/PHASE-8-DESIGN.md 5.2). `strict` for the
+# same reason compliance/ uses it: this package decides what claims leave the
+# platform, so it should not be the loosely typed one.
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/trustlayer_eval"]
+mypy_path = "../sdks/python/src"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trustlayer_eval"]
