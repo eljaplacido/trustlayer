@@ -2,10 +2,15 @@
 # not published — installing trustlayer-sdk is enough to use it
 # (`pip install -e sdks/python`). This file only configures pytest so the
 # package and the SDK resolve from a clean checkout.
+#
+# `evaluators/src` joined that list in ADR-020: `LLMReflector` now speaks to
+# Ollama through `trustlayer_eval.providers` rather than carrying its own copy
+# of the wire format. Hermes is in-repo and unpublished, so an intra-repo
+# import is a dependency on a sibling directory, not on a release.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["..", "../../sdks/python/src"]
+pythonpath = ["..", "../../sdks/python/src", "../../evaluators/src"]
 
 [tool.ruff]
 line-length = 100
@@ -23,4 +28,4 @@ python_version = "3.11"
 strict = true
 files = ["."]
 exclude = ["^tests/"]
-mypy_path = ["..", "../../sdks/python/src"]
+mypy_path = ["..", "../../sdks/python/src", "../../evaluators/src"]

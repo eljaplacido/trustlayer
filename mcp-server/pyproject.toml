@@ -33,7 +33,7 @@ packages = ["src/trustlayer_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "../sdks/python/src", "../skills"]
+pythonpath = ["src", "../sdks/python/src", "../skills", "../evaluators/src"]
 
 [tool.ruff]
 line-length = 100
@@ -44,7 +44,10 @@ exclude = ["README.md"]
 python_version = "3.11"
 strict = true
 files = ["src/trustlayer_mcp"]
-mypy_path = ["../sdks/python/src", "../skills"]
+# `../evaluators/src` is here transitively: this server imports Hermes, and
+# ADR-020 moved Hermes' LLM transport onto the evaluators package. Without it
+# mypy cannot resolve the import it follows into `llm_reflector.py`.
+mypy_path = ["../sdks/python/src", "../skills", "../evaluators/src"]
 [[tool.mypy.overrides]]
 module = ["mcp.*"]
 ignore_missing_imports = true

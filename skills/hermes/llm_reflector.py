@@ -7,6 +7,14 @@ by default, any OpenAI-compatible endpoint) that reads the structural
 The LLM is **best-effort** — if the endpoint is down, times out, or
 returns nonsense, the reflector falls back to the deterministic path
 so Hermes never breaks because the LLM is unavailable.
+
+ADR-020 refactored the transport onto ``trustlayer_eval.providers``. The
+public API here is unchanged and deliberately so: ``summarise_session``,
+``synthesise``, ``reflect_narrative``, ``last_error``, and the constructor
+keywords are the ADR-013 contract, and this module's existing tests pass
+unmodified against the new implementation. What changed is that Hermes no
+longer carries its own copy of the Ollama wire format — there is now one
+provider layer, and a fix to it fixes both callers.
 """
 
 from __future__ import annotations
@@ -18,6 +26,9 @@ from typing import Any
 
 import httpx
 from trustlayer.schema import AgentTraceEvent
+from trustlayer_eval.models import Message
+from trustlayer_eval.providers.base import ProviderError
+from trustlayer_eval.providers.ollama import OllamaProvider
 
 from .reflector import DeterministicReflector, Reflection, ReflectionEngine, SessionSummary
 
@@ -48,6 +59,20 @@ class LLMReflection:
     structured: Reflection
 
 
+def _base_url_of(endpoint: str) -> str:
+    """Reduce an ADR-013 chat URL to the base the provider expects.
+
+    ADR-013's constructor takes the full `/api/chat` URL and that keyword is
+    part of the frozen public API, while the provider layer owns the path. So
+    the suffix is stripped here rather than either contract being bent.
+    """
+    trimmed = endpoint.rstrip("/")
+    for suffix in ("/api/chat", "/v1/chat/completions"):
+        if trimmed.endswith(suffix):
+            return trimmed[: -len(suffix)]
+    return trimmed
+
+
 class LLMReflector:
     """Calls an LLM to produce narrative reflections from session summaries.
 
@@ -67,7 +92,12 @@ class LLMReflector:
     ) -> None:
         self.endpoint = endpoint
         self.model = model
-        self._client = httpx.Client(timeout=timeout, transport=transport)
+        self._provider = OllamaProvider(
+            base_url=_base_url_of(endpoint),
+            model=model,
+            timeout=timeout,
+            transport=transport,
+        )
         self._fallback = fallback or DeterministicReflector()
         self._last_error: str | None = None
 
@@ -100,25 +130,23 @@ class LLMReflector:
         structured: Reflection,
     ) -> str:
         prompt = _build_prompt(summaries, structured)
-        body = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "stream": False,
-            "options": {"temperature": 0.3, "num_predict": 1024},
-        }
         try:
-            response = self._client.post(self.endpoint, json=body)
-            response.raise_for_status()
-            data = response.json()
-            text = _extract_ollama_content(data)
+            response = self._provider.complete(
+                [
+                    Message(role="system", content=_SYSTEM_PROMPT),
+                    Message(role="user", content=prompt),
+                ],
+                # ADR-013 values, preserved: this is a narrative for humans, not
+                # a graded evaluator output, so a little variation reads better.
+                temperature=0.3,
+                max_tokens=1024,
+            )
+            text = response.text
             if not text.strip():
                 raise ValueError("LLM returned empty response")
             self._last_error = None
             return text.strip()
-        except (httpx.HTTPError, ValueError, KeyError) as exc:
+        except (ProviderError, httpx.HTTPError, ValueError, KeyError) as exc:
             self._last_error = str(exc)
             logger.warning("LLM reflection failed (%s), falling back to structural summary", exc)
             return _fallback_narrative(structured)
@@ -163,6 +191,11 @@ def _build_prompt(summaries: Sequence[SessionSummary], structured: Reflection) -
 
 
 def _extract_ollama_content(data: dict[str, Any]) -> str:
+    """Pull the assistant text out of an Ollama `/api/chat` body.
+
+    Retained after the ADR-020 refactor because it is part of this module's
+    tested surface; the provider now does the same extraction on the live path.
+    """
     content = data.get("message", {}).get("content", "")
     if isinstance(content, str):
         return content
