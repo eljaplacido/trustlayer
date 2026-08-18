@@ -76,7 +76,9 @@ cd trustlayer
 
 # Python SDK + Hermes
 cd sdks/python && pip install -e .[dev] && cd ../..
-cd skills/hermes && pip install -e ../../sdks/python
+# types-PyYAML is what Hermes' `mypy --strict` gate needs; CI installs it
+# explicitly, so without it here `verify.sh test` fails on a fresh clone.
+cd skills/hermes && pip install -e ../../sdks/python types-PyYAML
 
 # TypeScript SDK
 cd sdks/typescript && npm install && cd ../..

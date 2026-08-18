@@ -67,6 +67,14 @@ line-length = 100
 target-version = "py311"
 exclude = ["README.md"]
 
+[tool.ruff.lint.per-file-ignores]
+# The OTel tests gate their imports behind `pytest.importorskip`, so the
+# imports cannot move to the top of the file. Ruff 0.16 stopped reporting
+# E402 for that pattern; 0.15 still does. `ruff` is unpinned across this
+# repository, so without this the lint gate's verdict depends on whichever
+# version the machine happens to have.
+"tests/test_otel.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
